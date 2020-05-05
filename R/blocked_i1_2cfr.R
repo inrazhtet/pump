@@ -554,13 +554,13 @@ mdes_blocked_i1_2c <-function(M, numFalse, J, n.j, power, power.definition, MTP,
   # SETTING THE MDES BOUNDS FOR INDIVIDUAL AND OTHER TYPES OF POWER from using raw and bf mdes bounds #
 
   ### INDIVIDUAL POWER ###
-  if (power.definition =="indiv") {
+  if (power.definition == "indiv") {
 
     if (MTP == "raw"){
 
       # Attaching the MDES result to power results for tabular output
       mdes.results <- t(data.frame(c(MDES.raw,power))) # transpose the MDES raw and power to have the results columnwise
-      colnames(mdes.results) <- c("MDES without adjustment", paste0(power.definition, " power"))
+      colnames(mdes.results) <- c("MDES without adjustment", paste0("Corresponding ", power.definition, " power"))
 
       return (mdes.results)
 
@@ -570,7 +570,7 @@ mdes_blocked_i1_2c <-function(M, numFalse, J, n.j, power, power.definition, MTP,
 
       # Attaching the MDES result to power results for tabular output
       mdes.results <- t(data.frame(c(MDES.BF,power))) #transpose the MDES raw and power to have the results columnwise
-      colnames(mdes.results) <- c(paste0( MTP, " estimated adjusted MDES"), paste0("Specified ", power.definition, " power"))
+      colnames(mdes.results) <- c(paste0( MTP, " adjusted MDES"), paste0("Corresponding ", power.definition, " power"))
 
       return(mdes.results)
 
@@ -641,10 +641,9 @@ mdes_blocked_i1_2c <-function(M, numFalse, J, n.j, power, power.definition, MTP,
     # If the calculated target.power is within the margin of error of the prescribed power, break and return the results
     if(target.power > power - marginError & target.power < power + marginError){
 
-      browser()
       mdes.results <- data.frame(try.MDES[1], target.power)
 
-      colnames(mdes.results) <- c(paste0(MTP, " adjusted MDES"),paste0("Method Estimated ",power.definition, " power")) # Giving the proper colnames
+      colnames(mdes.results) <- c(paste0(MTP, " adjusted MDES"),paste0("Corresponding ",power.definition, " power")) # Giving the proper colnames
 
       return(mdes.results)
 
