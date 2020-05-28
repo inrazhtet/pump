@@ -29,7 +29,7 @@ sample_blocked_i1_2c(
   rho = 0.99,
   omega,
   tnum = 10000,
-  snum = 2,
+  snum = 1000,
   ncl = 2,
   num.iter = 20,
   updateProgress = NULL
@@ -42,9 +42,9 @@ sample_blocked_i1_2c(
 
 \item{typesample}{the type of the number of sample we would like to estimate: either block J or n.j (harmonic mean within block. For Shiny use)}
 
-\item{J}{the number of blocks (set to NULL if you do not want to estimate this one)}
+\item{J}{the number of blocks (set to NULL if you want to estimate this one)}
 
-\item{n.j}{the harmonic mean of blocks (set to NULL if you do not want to estimate this one)}
+\item{n.j}{the harmonic mean of blocks (set to NULL if you want to estimate this one)}
 
 \item{J0}{the initial value for the sample number of blocks. The default is set at 10.}
 

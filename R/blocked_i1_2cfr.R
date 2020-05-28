@@ -379,6 +379,9 @@ power_blocked_i1_2c <- function(M, MTP, MDES, numFalse, J, n.j,
 
     adjp.each <- list(rawp, adjp.SD)
 
+  } else if (MTP == "rawp"){
+
+    adjp.each <- list(rawp)
   }
 
   # for each MTP, get matrix of indicators for whether the adjusted p-value is less than alpha
@@ -425,7 +428,18 @@ power_blocked_i1_2c <- function(M, MTP, MDES, numFalse, J, n.j,
   all.power.results<-cbind(power.ind.each.mat,power.min.mat[,-M],power.cmp)
 
   # calculating average individual power
-  mean.ind.power <- apply(as.matrix(all.power.results[,1:M][,MDES>0]),1,mean)
+  # ZH: for some reason the rawp mean individual ower calculation won't work unless we take
+  # ZH: out [,MDES > 0]
+  if (MTP == "rawp"){
+
+    mean.ind.power <- apply(as.matrix(all.power.results[,1:M]),1,mean)
+
+  } else{
+
+    mean.ind.power <- apply(as.matrix(all.power.results[,1:M][,MDES>0]),1,mean)
+
+  } # else
+
 
   # revise final matrix to report this mean individual power and return results
   all.power.results<-cbind(mean.ind.power,all.power.results)
@@ -452,6 +466,10 @@ power_blocked_i1_2c <- function(M, MTP, MDES, numFalse, J, n.j,
   } else if (MTP == "WY-SD") {
 
     rownames(all.power.results) <- c("rawp", "WY-SD")
+
+  } else if (MTP == "rawp"){
+
+    rownames(all.power.results) <- c("rawp")
 
   }
 
@@ -526,7 +544,7 @@ mdes_blocked_i1_2c <-function(M, numFalse, J, n.j, power, power.definition, MTP,
   diag(sigma) <- 1
 
   # Checks on what we are estimating, sample size
-  print(paste("Estimating MDES for target ",power.definition,"power of ",round(power,4)))
+  message(paste("Estimating MDES for target ",power.definition,"power of ",round(power,4)))
 
   # Check to see if the MTP is Westfall Young and it has enough samples. Otherwise, enforce the requirement.
   if (MTP=="WY-SD" & snum < 1000){
@@ -556,7 +574,7 @@ mdes_blocked_i1_2c <-function(M, numFalse, J, n.j, power, power.definition, MTP,
   ### INDIVIDUAL POWER ###
   if (power.definition == "indiv") {
 
-    if (MTP == "raw"){
+    if (MTP == "rawp"){
 
       # Attaching the MDES result to power results for tabular output
       mdes.results <- t(data.frame(c(MDES.raw,power))) # transpose the MDES raw and power to have the results columnwise
@@ -570,7 +588,7 @@ mdes_blocked_i1_2c <-function(M, numFalse, J, n.j, power, power.definition, MTP,
 
       # Attaching the MDES result to power results for tabular output
       mdes.results <- t(data.frame(c(MDES.BF,power))) #transpose the MDES raw and power to have the results columnwise
-      colnames(mdes.results) <- c(paste0( MTP, " adjusted MDES"), paste0("Corresponding ", power.definition, " power"))
+      colnames(mdes.results) <- c(paste0("Adjusted MDES"), paste0("Corresponding ", power.definition, " power"))
 
       return(mdes.results)
 
@@ -643,7 +661,7 @@ mdes_blocked_i1_2c <-function(M, numFalse, J, n.j, power, power.definition, MTP,
 
       mdes.results <- data.frame(try.MDES[1], target.power)
 
-      colnames(mdes.results) <- c(paste0(MTP, " adjusted MDES"),paste0("Corresponding ",power.definition, " power")) # Giving the proper colnames
+      colnames(mdes.results) <- c(paste0("Adjusted MDES"),paste0("Corresponding ",power.definition, " power")) # Giving the proper colnames
 
       return(mdes.results)
 
@@ -773,8 +791,8 @@ sample_blocked_i1_2c_raw <- function(J, n.j, J0=10, n.j0=10,
 #' @param M the number of hypothesis tests (outcomes)
 #' @param numFalse the number of false nulls. This parameter is used for non-Shiny calculations
 #' @param typesample the type of the number of sample we would like to estimate: either block J or n.j (harmonic mean within block. For Shiny use)
-#' @param J the number of blocks (set to NULL if you do not want to estimate this one)
-#' @param n.j the harmonic mean of blocks (set to NULL if you do not want to estimate this one)
+#' @param J the number of blocks (set to NULL if you want to estimate this one)
+#' @param n.j the harmonic mean of blocks (set to NULL if you want to estimate this one)
 #' @param J0 the initial value for the sample number of blocks. The default is set at 10.
 #' @param n.j0 the initial value for the harmonic mean for the number of samples within block. The default is set at 10.
 #' @param MDES minimum detectable effet size
@@ -807,7 +825,7 @@ sample_blocked_i1_2c <- function(M, numFalse, typesample, J, n.j,
                             MTP, marginError,p, alpha, numCovar.1,
                             numCovar.2=0, R2.1, R2.2,ICC,mod.type,
                             sigma = 0, rho = 0.99, omega,tnum = 10000,
-                            snum=2, ncl=2, num.iter = 20, updateProgress=NULL) {
+                            snum = 1000, ncl=2, num.iter = 20, updateProgress=NULL) {
 
 
   # SET UP #
@@ -866,7 +884,7 @@ sample_blocked_i1_2c <- function(M, numFalse, typesample, J, n.j,
   ### INDIVIDUAL POWER for Raw and BF ###
   if (power.definition=="indiv") {
 
-    if (MTP == "raw"){
+    if (MTP == "rawp"){
 
       # saving the sample estimates for Individual Power with the MTP type
       raw.ss <- data.frame("Raw","Indivdual", ss.raw)
@@ -968,8 +986,8 @@ sample_blocked_i1_2c <- function(M, numFalse, typesample, J, n.j,
       try.ss.numeric <- ceiling(as.numeric(try.ss))
 
       # The estimated sample table with MTP type, Power, Sample Size and the target power
-      est.sample <- data.frame(MTP, power.definition, try.ss.numeric, target.power)
-      colnames(est.sample) <- c("Type of MTP", "Type of Power", "Sample Size", "Target Power")
+      est.sample <- data.frame(MTP,try.ss.numeric, power.definition,target.power)
+      colnames(est.sample) <- c("Type of MTP","Estimated Sample Size","Type of Power", "Corresponding Power")
 
       return(est.sample)
 
