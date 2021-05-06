@@ -887,8 +887,8 @@ sample_blocked_i1_2c <- function(M, numFalse, typesample, J, n.j,
     if (MTP == "rawp"){
 
       # saving the sample estimates for Individual Power with the MTP type
-      raw.ss <- data.frame("Raw","Indivdual", ss.raw)
-      colnames(raw.ss) <- c("Type of MTP", "Type of Power", "Sample Size")
+      raw.ss <- data.frame("Raw", ss.raw, "Indivdual", power)
+      colnames(raw.ss) <- c("MTP", "Estimated_Sample_Size", "Type_of_Power", "Corresponding_Power")
 
       # To check if the function is returning a table
 
@@ -987,7 +987,7 @@ sample_blocked_i1_2c <- function(M, numFalse, typesample, J, n.j,
 
       # The estimated sample table with MTP type, Power, Sample Size and the target power
       est.sample <- data.frame(MTP,try.ss.numeric, power.definition,target.power)
-      colnames(est.sample) <- c("Type of MTP","Estimated Sample Size","Type of Power", "Corresponding Power")
+      colnames(est.sample) <- c("MTP","Estimated_Sample_Size","Type_of_Power", "Corresponding_Power")
 
       return(est.sample)
 
