@@ -2,7 +2,21 @@
 % Please edit documentation in R/optimize_power.R
 \name{optimize_power}
 \alias{optimize_power}
-\title{Optimizes power to help in search for MDES or SS}
+\title{#' Midpoint function
+#'
+#' Calculating the midpoint between the lower and upper bound by calculating
+#' half the distance between the two and adding the lower bound to it. The
+#' function is a helper function in determining the MDES that falls within
+#' acceptable power range.
+#'
+#' @param lower lower bound
+#' @param upper upper bound
+#' @importFrom stats dist
+#' @return returns midpoint value
+midpoint <- function(lower, upper) {
+  return(lower + dist(c(lower, upper))[[1]]/2)
+}
+Optimizes power to help in search for MDES or SS}
 \usage{
 optimize_power(
   design,
@@ -35,8 +49,10 @@ optimize_power(
   B = NULL,
   cl = NULL,
   max.steps = 20,
-  max.cum.tnum = 5000,
-  final.tnum = 10000
+  max.tnum = 2000,
+  final.tnum = 4 * max.tnum,
+  give.warnings = FALSE,
+  verbose = FALSE
 )
 }
 \arguments{
@@ -52,7 +68,8 @@ options: Bonferroni, BH, Holm, WY-SS, WY-SD}
 \item{power.definition}{must be a valid power type outputted by power
 function, i.e. D1indiv, min1, etc.}
 
-\item{MDES}{scalar, or vector of length M; the MDES values for each outcome.}
+\item{MDES}{scalar or vector:  t he MDES values for each outcome.
+Please provide a scalar, a vector of length M, or vector of values for non-zero outcomes.}
 
 \item{J}{scalar; the number of schools}
 
@@ -60,7 +77,7 @@ function, i.e. D1indiv, min1, etc.}
 
 \item{nbar}{scalar; the harmonic mean of the number of units per school}
 
-\item{M}{scalar; the number of hypothesis tests (outcomes)}
+\item{M}{scalar; the number of hypothesis tests (outcomes), including zero outcomes}
 
 \item{Tbar}{scalar; the proportion of samples that are assigned to the
 treatment}
@@ -104,8 +121,7 @@ tests.}
 
 \item{max.steps}{how many steps allowed before terminating}
 
-\item{max.cum.tnum}{maximum cumulative number of samples for testing a given
-point (max samples per step.)}
+\item{max.tnum}{maximum number of samples for a single step (other than the final check step).}
 
 \item{final.tnum}{number of samples for final draw}
 }
@@ -113,5 +129,19 @@ point (max samples per step.)}
 power
 }
 \description{
+#' Midpoint function
+#'
+#' Calculating the midpoint between the lower and upper bound by calculating
+#' half the distance between the two and adding the lower bound to it. The
+#' function is a helper function in determining the MDES that falls within
+#' acceptable power range.
+#'
+#' @param lower lower bound
+#' @param upper upper bound
+#' @importFrom stats dist
+#' @return returns midpoint value
+midpoint <- function(lower, upper) {
+  return(lower + dist(c(lower, upper))[[1]]/2)
+}
 Optimizes power to help in search for MDES or SS
 }

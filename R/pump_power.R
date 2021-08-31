@@ -7,33 +7,31 @@
 supported_designs <- function() {
   design = tibble::tribble( ~ Code, ~ Comment,
                    # 1 level design
-                   "d1.1_m2fc", "",
+                   "d1.1_m2cc", "1 level, level 1 randomization / constant intercepts, constant impacts model",
                    # 2 level designs, randomization at level 1
-                   "d2.1_m2fc", "2 levels, level 1 randomization / fixed intercepts, constant impacts model",
-                   "d2.1_m2ff", "2 levels, level 1 randomization / fixed intercepts, fixed impacts model",
-                   "d2.1_m2fr", "2 levels, level 1 randomization / fixed intercepts, random impacts model",
-                   # 3 level design, randomization at level 1
-                   "d3.1_m3rr2rr", "3 levels, level 1 randomization /
-                   level 3 random intercepts, random impacts model, level 2 random intercepts, random impacts model",
-                   # 2 level design, randomization at level 2
-                   "d2.2_m2rc", "2 levels, level 2 randomization / random intercepts, constant impacts model",
-                   # 3 level design, randomization at level 3
-                   "d3.3_m3rc2rc", "3 levels, level 3 randomization /
-                   level 3 random intercepts, constant impacts model, level 2 random intercepts, constant impacts model",
-                   # 3 level design, randomization at level 2
-                   "d3.2_m3ff2rc", "3 levels, level 2 randomization /
-                   level 3 fixed intercepts, fixed impacts model, level 2 random intercepts, constant impacts model",
-                   "d3.2_m3rr2rc", "3 levels, level 2 randomization /
-                   level 3 random intercepts, random impacts model, level 2 random intercepts, constant impacts model" )
+                   "d2.1_m2fc", "2 lvls, lvl 1 rand / fixed intercepts, constant impacts",
+                   "d2.1_m2ff", "2 lvls, lvl 1 rand / fixed intercepts, fixed impacts",
+                   "d2.1_m2fr", "2 lvls, lvl 1 rand / fixed intercepts, random impacts",
+                   # 3 lvl design, rand at lvl 1
+                   "d3.1_m3rr2rr", "3 lvls, lvl 1 rand / lvl 3 random intercepts, random impacts, lvl 2 random intercepts, random impacts",
+                   # 2 lvl design, rand at lvl 2
+                   "d2.2_m2rc", "2 lvls, lvl 2 rand / random intercepts, constant impacts",
+                   # 3 lvl design, rand at lvl 3
+                   "d3.3_m3rc2rc", "3 lvls, lvl 3 rand / lvl 3 random intercepts, constant impacts, lvl 2 random intercepts, constant impacts",
+                   # 3 lvl design, rand at lvl 2
+                   "d3.2_m3ff2rc", "3 lvls, lvl 2 rand / lvl 3 fixed intercepts, fixed impacts, lvl 2 random intercepts, constant impacts",
+                   "d3.2_m3rr2rc", "3 lvls, lvl 2 rand / lvl 3 random intercepts, random impacts, lvl 2 random intercepts, constant impacts" )
 
-  adjust = tibble::tribble( ~ Code, ~ Comment,
+  design = tidyr::separate( design, Code, into=c("Design","Model"), remove = FALSE, sep="_" )
+
+  adjust = tibble::tribble( ~ Method, ~ Comment,
                             "Bonferroni", "The classic (and conservative) multiple testing correction",
                             "Holm", "Bonferroni improved!",
                             "BH", "Benjamini-Hochberg (False Discovery Rate)",
                             "WY-SS", "Westfall-Young, Single Step",
                             "WY-SD", "Westfall-Young, Step Down" )
 
-  dplyr::bind_rows( Design=design, Adjustment=adjust, .id="Group")
+  list( Design=design, Adjustment=adjust )
 }
 
 
@@ -56,9 +54,9 @@ supported_designs <- function() {
 
 calc.Q.m <- function(design, J, K, nbar, Tbar, R2.1, R2.2, R2.3, ICC.2, ICC.3, omega.2, omega.3) {
 
-  if(design %in% c('d1.1_m2fc'))
+  if(design %in% c('d1.1_m2cc'))
   {
-    Q.m <- sqrt( ( (1 - R2.1) ) /(Tbar * (1-Tbar) * J * nbar) )
+    Q.m <- sqrt( ( (1 - R2.1) ) /(Tbar * (1-Tbar) * nbar) )
   } else if(design %in% c('d2.1_m2fc', 'd2.1_m2ff'))
   {
     Q.m <- sqrt( ( (1 - ICC.2)*(1 - R2.1) ) /(Tbar * (1-Tbar) * J * nbar) )
@@ -108,11 +106,11 @@ calc.Q.m <- function(design, J, K, nbar, Tbar, R2.1, R2.2, R2.3, ICC.2, ICC.3, o
 #'
 #' @export
 
-calc.df <- function(design, J, K, nbar, numCovar.1, numCovar.2, numCovar.3) {
+calc.df <- function(design, J, K, nbar, numCovar.1, numCovar.2, numCovar.3, validate = TRUE) {
 
-  if(design == 'd1.1_m2fc')
+  if(design == 'd1.1_m2cc')
   {
-    df <- J * (nbar - 1) - numCovar.1 - 1
+    df <- J * nbar - numCovar.1 - 1
   } else if(design == 'd2.1_m2fc')
   {
     df <- J * (nbar - 1) - numCovar.1 - 1
@@ -141,10 +139,14 @@ calc.df <- function(design, J, K, nbar, numCovar.1, numCovar.2, numCovar.3) {
   {
     stop(paste('Design not implemented:', design))
   }
+
+  if(validate & df <= 0)
+  {
+    stop('Invalid design parameters resulting in nonpositive degrees of freedom')
+  }
+
   return(df)
 }
-
-
 
 
 #' Calculates different definitions of power
@@ -154,10 +156,11 @@ calc.df <- function(design, J, K, nbar, numCovar.1, numCovar.2, numCovar.3) {
 #' @param pval.mat matrix of p-values, columns are outcomes
 #' @param ind.nonzero vector indicating which outcomes are nonzero
 #' @param alpha scalar; the family wise error rate (FWER)
+#' @param unadj whether p-values are unadjusted or not
 #'
 #' @return power results for individual, minimum, complete power
 #' @export
-get.power.results = function(pval.mat, ind.nonzero, alpha)
+get.power.results = function(pval.mat, ind.nonzero, alpha, adj = TRUE)
 {
   M <- ncol(pval.mat)
   num.nonzero <- sum(ind.nonzero)
@@ -172,22 +175,35 @@ get.power.results = function(pval.mat, ind.nonzero, alpha)
 
   # minimum and complete power
   power.min <- rep(NA, num.nonzero)
-  for(m in 1:num.nonzero)
+
+  # if unadjusted, don't report minimum or complete power
+  if(adj)
   {
-    min.rejects <- apply(rejects.nonzero, 1, function(x){ sum(x) >= m })
-    power.min[m] <- mean(min.rejects)
+    for(m in 1:num.nonzero)
+    {
+      min.rejects <- apply(rejects.nonzero, 1, function(x){ sum(x) >= m })
+      power.min[m] <- mean(min.rejects)
+    }
   }
 
-  # combine all power for all definitions
-  all.power.results <- data.frame(matrix(c(power.ind, power.ind.mean, power.min), nrow = 1))
-  if(num.nonzero > 1)
+
+  if(num.nonzero == 0)
   {
-    colnames(all.power.results) = c(paste0("D", 1:num.nonzero, "indiv"),
-                                    "indiv.mean", paste0("min",1:(num.nonzero-1)), "complete")
+    all.power.results <- data.frame('D1indiv' = NA)
   } else
   {
-    colnames(all.power.results) = c(paste0("D", 1:num.nonzero, "indiv"),
-                                    "indiv.mean", "min1")
+    # combine all power for all definitions
+    all.power.results <- data.frame(matrix(c(power.ind, power.ind.mean, power.min), nrow = 1))
+
+    if(num.nonzero > 1)
+    {
+      colnames(all.power.results) = c(paste0("D", 1:num.nonzero, "indiv"),
+                                      "indiv.mean", paste0("min",1:(num.nonzero-1)), "complete")
+    } else
+    {
+      colnames(all.power.results) = c(paste0("D", 1:num.nonzero, "indiv"),
+                                      "indiv.mean", "min1")
+    }
   }
 
   return(all.power.results)
@@ -197,16 +213,17 @@ get.power.results = function(pval.mat, ind.nonzero, alpha)
 #' Calculate power using PUMP method
 #'
 #' This functions calculates power for all definitions of power (individual,
-#' d-minimal, complete) for all the different MTPs (Bonferroni, Holms,
+#' d-minimal, complete) for all the different MTPs (none, Bonferroni, Holms,
 #' Bejamini-Hocheberg, Westfall-Young Single Step, Westfall-Young Step Down).
 #'
 #' @param design a single RCT design (see list/naming convention)
 #' @param MTP Multiple adjustment procedure of interest. Supported options:
-#'   Bonferroni, BH, Holm, WY-SS, WY-SD (passed as strings).  Provide list to
+#'   none, Bonferroni, BH, Holm, WY-SS, WY-SD (passed as strings).  Provide list to
 #'   automatically re-run for each procedure on the list.
-#' @param MDES scalar, or vector of length M; the MDES values for each outcome.
-#' @param numZero if MDES is scalar, number of outcomes assumed to be zero.
-#' @param M scalar; the number of hypothesis tests (outcomes)
+#' @param MDES scalar or vector:  t he MDES values for each outcome.
+#' Please provide a scalar, a vector of length M, or vector of values for non-zero outcomes.
+#' @param numZero Additional number of outcomes assumed to be zero. Please provide NumZero + length(MDES) = M
+#' @param M scalar; the number of hypothesis tests (outcomes), including zero outcomes
 #' @param J scalar; the number of schools
 #' @param K scalar; the number of districts
 #' @param nbar scalar; the harmonic mean of the number of units per school
@@ -245,14 +262,15 @@ get.power.results = function(pval.mat, ind.nonzero, alpha)
 #'
 #'
 pump_power <- function(
-  design, MTP, MDES, numZero = NULL,
-  M, J, K = 1, nbar, Tbar,
+  design, MTP = NULL, MDES, numZero = NULL,
+  M,
+  nbar, J = 1, K = 1, Tbar,
   alpha = 0.05,
   numCovar.1 = 0, numCovar.2 = 0, numCovar.3 = 0,
   R2.1 = 0, R2.2 = 0, R2.3 = 0,
   ICC.2 = 0, ICC.3 = 0,
   omega.2 = 0, omega.3 = 0,
-  rho, rho.matrix = NULL,
+  rho = NULL, rho.matrix = NULL,
   tnum = 10000, B = 3000,
   cl = NULL,
   updateProgress = NULL,
@@ -278,16 +296,18 @@ pump_power <- function(
   {
     # validate input parameters
     params.list <- list(
+      MTP = MTP,
       MDES = MDES, numZero = numZero, M = M, J = J, K = K,
       nbar = nbar, Tbar = Tbar, alpha = alpha,
       numCovar.1 = numCovar.1, numCovar.2 = numCovar.2, numCovar.3 = numCovar.3,
       R2.1 = R2.1, R2.2 = R2.2, R2.3 = R2.3,
       ICC.2 = ICC.2, ICC.3 = ICC.3, omega.2 = omega.2, omega.3 = omega.3,
-      rho = rho, rho.matrix = rho.matrix
+      rho = rho, rho.matrix = rho.matrix, B = B
     )
 
-    params.list <- validate_inputs(design, MTP, params.list)
+    params.list <- validate_inputs(design, params.list)
 
+    MTP <- params.list$MTP
     MDES <- params.list$MDES
     M <- params.list$M; J <- params.list$J; K <- params.list$K
     nbar <- params.list$nbar; Tbar <- params.list$Tbar; alpha <- params.list$alpha
@@ -297,6 +317,7 @@ pump_power <- function(
     ICC.2 <- params.list$ICC.2; ICC.3 <- params.list$ICC.3
     omega.2 <- params.list$omega.2; omega.3 <- params.list$omega.3
     rho <- params.list$rho; rho.matrix <- params.list$rho.matrix
+    B <- params.list$B
   }
 
   # compute test statistics for when null hypothesis is false
@@ -334,6 +355,7 @@ pump_power <- function(
 
   grab.pval <- function(...,proc) {return(...$adjp[order(...$index),proc])}
 
+  adjp = NULL
   if (MTP == "Bonferroni"){
 
     adjp <- apply(rawp.mat, 1, multtest::mt.rawp2adjp, proc = "Bonferroni", alpha = alpha)
@@ -361,7 +383,7 @@ pump_power <- function(
 
     adjp <- adjp.wysd(rawt.mat = rawt.mat, B = B, Sigma = Sigma, t.df = t.df, cl = cl)
 
-  } else {
+  } else if ( MTP != "None") {
 
     stop(paste("Unknown MTP:", MTP))
   }
@@ -371,62 +393,17 @@ pump_power <- function(
   }
 
   ind.nonzero <- MDES > 0
-  power.results.rawp <- get.power.results(rawp.mat, ind.nonzero, alpha)
-  power.results.proc <- get.power.results(adjp, ind.nonzero, alpha)
-  power.results.all <- data.frame(rbind(power.results.rawp, power.results.proc))
-  rownames(power.results.all) <- c('rawp', MTP)
+  power.results.rawp <- get.power.results(rawp.mat, ind.nonzero, alpha, adj = FALSE)
 
-  return(power.results.all)
+  if ( !is.null( adjp ) ) {
+    power.results.proc <- get.power.results(adjp, ind.nonzero, alpha, adj = TRUE)
+    power.results.all <- data.frame(rbind(power.results.rawp, power.results.proc))
+    rownames(power.results.all) <- c('rawp', MTP)
+
+    return(power.results.all)
+  } else {
+    rownames(power.results.rawp) = "rawp"
+    return(power.results.rawp)
+  }
 }
 
-
-
-
-
-scat = function( str, ... ) {
-  cat( sprintf( str, ... ) )
-}
-
-#' Run pump_power on combination of factors
-#'
-#' This extenstion of `pump_power()` will take lists of parameter values and run
-#' `pump_power()` on all combinations of these values.
-#'
-#' It can only assume the same MDES value for all outcomes due to this.
-#'
-#' Each parameter in the parameter list can be a list, not scalar.
-#'
-#' @inheritParams pump_power
-#'
-#' @param MDES This is *not* a list of MDES for each outcome, but rather a list
-#'   of MDES to explore. Each value will be assumed held constant across all M
-#'   outcomes.
-#'
-#' @export
-pump_power_grid <- function( design, MTP, MDES, M, J, K = 1, nbar, Tbar, alpha,
-                             numCovar.1 = 0, numCovar.2 = 0, numCovar.3 = 0,
-                             R2.1, R2.2 = NULL, R2.3 = NULL,
-                             ICC.2, ICC.3 = NULL,
-                             rho, omega.2 = NULL, omega.3 = NULL, ... ) {
-
-  args = list( M = M, J = J, K = K, nbar = nbar,
-               Tbar = Tbar, alpha = alpha,
-               numCovar.1 = numCovar.1, numCovar.2 = numCovar.2, numCovar.3 = numCovar.3,
-               R2.1 = R2.1, R2.2 = R2.2, ICC.2 = ICC.2, ICC.3 = ICC.3,
-               rho = rho, omega.2 = omega.2, omega.3 = omega.3 )
-  nulls = purrr::map_lgl( args, is.null )
-  args = args[ !nulls ]
-
-  grid = do.call( expand.grid, args )
-  scat( "Processing %d calls\n", nrow(grid) )
-  grid$res = purrr::pmap( grid, pump_power,
-                          design = design,
-                          MTP = MTP,
-                          MDES = MDES, ... )
-
-  grid$res = purrr::map( grid$res, as.data.frame )
-  grid$res = purrr::map( grid$res, tibble::rownames_to_column, var ="adjustment" )
-  grid = tidyr::unnest( grid, res )
-
-  grid
-}

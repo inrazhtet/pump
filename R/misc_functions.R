@@ -1,24 +1,27 @@
+scat = function( str, ... ) {
+  cat( sprintf( str, ... ) )
+}
+
 #' Validates user inputs
 #'
 #' This functions takes in a list of user inputs. Depending on the inputs,
 #' it produces errors or warnings, and at times modifies inputs if necessary.
 #'
 #' @param design a single RCT design (see list/naming convention)
-#' @param MTP a single multiple adjustment procedure of interest.
 #' @param params.list a list of parameters input by a user
 #'
 #' @return params.list
 #'
-validate_inputs <- function( design, MTP, params.list,
+validate_inputs <- function( design, params.list,
                              mdes.call = FALSE,
-                             single.MDES = FALSE )
+                             single.MDES = FALSE)
 {
 
   #-------------------------------------------------------#
   # basic checks of inputs
   #-------------------------------------------------------#
 
-  if(!(design %in% c('d1.1_m2fc',
+  if(!(design %in% c('d1.1_m2cc',
                      'd2.1_m2fc', 'd2.1_m2ff', 'd2.1_m2fr',
                      'd3.1_m3rr2rr', 'd2.2_m2rc', 'd3.3_m3rc2rc',
                      'd3.2_m3ff2rc', 'd3.2_m3rr2rc')))
@@ -26,12 +29,24 @@ validate_inputs <- function( design, MTP, params.list,
     stop('Invalid design.')
   }
 
-  if(length( MTP ) > 1)
+  if(params.list$M == 1)
+  {
+    if ( !is.null( params.list$MTP ) && (params.list$MTP != "None" ) )
+    {
+      warning("Multiple testing corrections are not needed when M = 1.")
+    }
+    params.list$MTP <- "None"
+  } else if(is.null(params.list$MTP))
+  {
+    stop('Please provide a multiple test procedure (MTP).')
+  }
+
+  if(length( params.list$MTP ) > 1)
   {
     stop( 'Please provide only a single MTP procedure.' )
   }
 
-  if(!(MTP %in% c('rawp', 'Bonferroni', 'BH', 'Holm', 'WY-SS', 'WY-SD')))
+  if(!(params.list$MTP %in% c('None', 'Bonferroni', 'BH', 'Holm', 'WY-SS', 'WY-SD')))
   {
     stop('Invalid MTP.')
   }
@@ -46,26 +61,33 @@ validate_inputs <- function( design, MTP, params.list,
     }
   } else
   {
-    if(!is.null(params.list$numZero) & length(params.list$MDES) != 1)
-    {
-      stop('If providing a number of zero outcomes, please provide a single MDES value.')
-    }
     if(!is.null(params.list$numZero))
     {
-      numNonzero <- params.list$M - params.list$numZero
-      params.list$MDES <- c(rep(params.list$MDES, numNonzero), rep(0, params.list$numZero))
-      print(paste('Assumed full MDES vector:', params.list$MDES))
+      if( ( length(params.list$MDES) > 1 ) &&
+          ( params.list$numZero + length(params.list$MDES) != params.list$M ) )
+      {
+        stop('Please provide an MDES vector + numZero that add up to M.\n
+             Example: MDES = c(0.1, 0.1), numZero = 3, M = 5.\n
+             Assumed MDES vector = c(0.1, 0.1, 0, 0, 0)')
+      }
+      if ( length(params.list$MDES) == 1 ) {
+        params.list$MDES <- c(rep( params.list$MDES, params.list$M - params.list$numZero),
+                              rep(0, params.list$numZero) )
+      } else {
+        params.list$MDES <- c(params.list$MDES, rep(0, params.list$numZero))
+      }
+      message('Assumed full MDES vector:', 'c(', paste(params.list$MDES, collapse = ', '), ')')
     }
-
     if ( single.MDES ) {
       if ( length(params.list$MDES) != 1 ) {
-        stop( "Please provide a single MDES value This function does not support vector MDES inputs." )
+        stop( "Please provide a single MDES value. This function does not support vector MDES inputs." )
       }
-    } else if(length(params.list$MDES) < params.list$M)
+    } else if(length(params.list$MDES) != params.list$M)
     {
       if ( length(params.list$MDES) == 1 ) {
         params.list$MDES <- rep( params.list$MDES, params.list$M )
-        warning('Assuming same MDES for all outcomes.  Specify full vector to remove this message.')
+        #warning('Assuming same MDES for all outcomes.  Specify full vector to remove this message.')
+        #message('Assuming same MDES for all outcomes.  Specify full vector to remove this message.')
       } else {
         stop(paste('Please provide a vector of MDES values of length 1 or M. Current vector:',
                    MDES, 'M =', M))
@@ -77,12 +99,12 @@ validate_inputs <- function( design, MTP, params.list,
   # Basic checks of data parameters
   #-------------------------------------------------------#
 
-  if( (!is.null( params.list$K ) && params.list$K <= 0) | params.list$J <= 0 | params.list$nbar <= 0)
+  if( (!is.null( params.list$K ) && params.list$K <= 0) | ( !is.null( params.list$J) && params.list$J <= 0) | params.list$nbar <= 0)
   {
-    stop('Please provide positive values of J, K, and/or nbar')
+    stop('Pasted values of J, K, and/or nbar need to be positive.')
   }
 
-  if(params.list$numCovar.1 < 0 | params.list$numCovar.2 < 0  |
+  if(params.list$numCovar.1 < 0 | ( !is.null( params.list$numCovar.2 )  && params.list$numCovar.2 < 0  ) |
      ( !is.null( params.list$numCovar.3 ) && params.list$numCovar.3 < 0 ) )
   {
     stop('Please provide non-negative values of your num.Covar parameters')
@@ -115,31 +137,54 @@ validate_inputs <- function( design, MTP, params.list,
     stop('Please provide rho as a correlation between -1 and 1')
   }
 
+  if(!(length(params.list$R2.1) %in% c(1, params.list$M))  |
+     !(length(params.list$R2.2) %in% c(1, params.list$M)) |
+     !(length(params.list$R2.3) %in% c(1, params.list$M)) )
+  {
+    stop('Please provide R2 as a scalar or vector of length M.')
+  }
+
+  if(!(length(params.list$ICC.2) %in% c(1, params.list$M))  |
+     !(length(params.list$ICC.3) %in% c(1, params.list$M)) )
+  {
+    stop('Please provide ICC as a scalar or vector of length M.')
+  }
+
+  if(!(length(params.list$omega.2) %in% c(1, params.list$M))  |
+     !(length(params.list$omega.3) %in% c(1, params.list$M)) )
+  {
+    stop('Please provide omega as a scalar or vector of length M.')
+  }
   #-------------------------------------------------------#
   # check for inconsistent user inputs
   #-------------------------------------------------------#
 
-  if(params.list$M == 1)
-  {
-    warning("Multiple testing corrections are not needed when M = 1.")
-    MTP <- "Bonferroni"
+  if( design == 'd1.1_m2cc' ) {
+    if ( !is.null( params.list$J ) && params.list$J != 1 ) {
+      stop( "Can't have multiple units at 2nd level for the d1.1_m2cc design" )
+    }
+
+  #  if ( !is.null( params.list$numCovar.2 ) || !is.null( params.list$numCovar.3 ) || !is.null( params.list$R2.2 ) || !is.null( params.list$ICC.2 ) ) {
+   #   stop( "Can't have numCovar.2, numCovar.3, R2.2, or ICC.2 for d1.1_m2cc design (single level design" )
+  #  }
+
   }
 
-  if(params.list$J == 1 & design != 'd1.1_m2fc')
-  {
-    message('Assuming unblocked design')
-    design <- 'd1.1_m2fc'
-  }
 
   # two level models
-  if(startsWith(design, 'd2'))
+  if(startsWith(design, 'd2') | startsWith(design, 'd1'))
   {
+    if ( startsWith(design, 'd2') & params.list$J == 1 )
+    {
+      warning('Two level design with single unit at level 2')
+    }
+
     if( ( !is.null(params.list$K) && params.list$K > 1 ) |
         ( !is.null(params.list$numCovar.3) && params.list$numCovar.3 > 0 ) |
         ( !is.null(params.list$R2.3)) && any( params.list$R2.3 > 0 ) |
         ( !is.null(params.list$omega.3) && params.list$omega.3 > 0 ) )
     {
-      warning('The following parameters are not valid for two-level designs, and will be ignored:\n
+      warning('The following parameters are only valid for three-level designs, and will be ignored:\n
               K, numCovar.3, R2.3, ICC.3, omega.3')
       params.list$K <- NULL
       params.list$numCovar.3 <- NULL
@@ -220,13 +265,29 @@ validate_inputs <- function( design, MTP, params.list,
     }
   }
 
+  # number covariates
+  if(!is.null( params.list$R2.1) && params.list$R2.1 != 0 && params.list$numCovar.1 == 0)
+  {
+    warning('If nonzero R2 (R2.1, level 1), at least one covariate is assumed. Setting numCovar.1 = 1')
+    params.list$numCovar.1 <- 1
+  }
+  if(!is.null( params.list$R2.2) && params.list$R2.2 != 0 && params.list$numCovar.2 == 0)
+  {
+    warning('If nonzero R2 (R2.2, level 2), at least one covariate is assumed. Setting numCovar.2 = 1')
+    params.list$numCovar.2 <- 1
+  }
+  if(!is.null( params.list$R2.3) && params.list$R2.3 != 0 && params.list$numCovar.3 == 0)
+  {
+    warning('If nonzero R2 (R2.3, level 3), at least one covariate is assumed. Setting numCovar.3 = 1')
+    params.list$numCovar.3 <- 1
+  }
+
   #-------------------------------------------------------#
   #  rho
   #-------------------------------------------------------#
-  if(!is.null(params.list$rho.matrix) & !is.null(params.list$rho))
+  if(is.null(params.list$rho.matrix) & is.null(params.list$rho))
   {
-    warning('Provided both rho and full rho matrix, using only rho.matrix')
-    params.list$rho <- NULL
+    stop('Please provide either a rho matrix or default rho.')
   }
 
   if(!is.null(params.list$rho.matrix))
@@ -234,6 +295,23 @@ validate_inputs <- function( design, MTP, params.list,
     if(nrow(params.list$rho.matrix) != M | ncol(params.list$rho.matrix) != M)
     {
       stop('Correlation matrix of invalid dimensions. Please provide valid correlation matrix.')
+    }
+  }
+
+  #-------------------------------------------------------#
+  # check for WY
+  #-------------------------------------------------------#
+
+  if(params.list$MTP %in% c('WY-SS', 'WY-SD') &
+     design %in% c('d2.1_m2fr', 'd3.1_m3rr2rr', 'd2.2_m2rc', 'd3.3_m3rc2rc',
+                   'd3.2_m3ff2rc', 'd3.2_m3rr2rc'))
+  {
+    if(params.list$B < 10000)
+    {
+      warning(paste(
+        'For models with random intercepts/impacts, B >= 10000 is recommended. Current B:',
+        params.list$B
+      ))
     }
   }
 

@@ -4,6 +4,7 @@
 
 
 test_that("pump_mdes runs for Bonferroni", {
+  set.seed( 2424424 )
 
   pmdesB <- pump_mdes( design = "d2.1_m2fc",
                        MTP = "Bonferroni",
@@ -11,98 +12,101 @@ test_that("pump_mdes runs for Bonferroni", {
                        power.definition = "D2indiv",
                        M = 3,
                        target.power = 0.80, tol = 0.01,
-                       Tbar = 0.50, alpha = 0.05, numCovar.1 = 5, numCovar.2 = 0,
+                       Tbar = 0.50, alpha = 0.05, numCovar.1 = 5, numCovar.2 = 1,
                        R2.1 = 0.1, R2.2 = 0.7, ICC.2 = 0.05, ICC.3 = 0.4,
-                       tnum = 300,
-                       rho = 0.4 )
-
+                       max.tnum = 300,
+                       rho = 0.4, just.result.table = FALSE )
   pmdesB
   expect_true( pmdesB$mdes.results$`Adjusted MDES` > 0 )
-  expect_true( abs( pmdesB$mdes.results$`D2indiv power` - 0.80) <  0.01 )
+  expect_true( abs(pmdesB$mdes.results$`D2indiv power` - 0.80) <  0.01 )
 
-  pmdesr <- pump_mdes( design = "d2.1_m2fc",
-                       MTP = "rawp",
+  pmdesR <- pump_mdes( design = "d2.1_m2fc",
+                       MTP = "None",
                        nbar = 200, J = 50,
                        power.definition = "D2indiv",
                        M = 3,
                        target.power = 0.80, tol = 0.01,
-                       Tbar = 0.50, alpha = 0.05, numCovar.1 = 5, numCovar.2 = 0,
+                       Tbar = 0.50, alpha = 0.05, numCovar.1 = 5, numCovar.2 = 1,
                        R2.1 = 0.1, R2.2 = 0.7, ICC.2 = 0.05, ICC.3 = 0.4,
-                       tnum = 300,
+                       max.tnum = 300,
                        rho = 0.4 )
+  expect_true( pmdesR$mdes.results$`Adjusted MDES` > 0 )
+  expect_true( abs(pmdesR$mdes.results$`D2indiv power` - 0.80) <  0.01 )
+  expect_true( pmdesR$mdes.results$`Adjusted MDES` < pmdesB$mdes.results$`Adjusted MDES`)
 
-  pmdesr
-  expect_true( pmdesr$mdes.results$`Adjusted MDES` < pmdesB$mdes.results$`Adjusted MDES`)
-
-
-  pmdes <- pump_mdes( design = "d2.1_m2fc",
+  set.seed( 14444444 )
+  pmdesBmin <- pump_mdes(
+                      design = "d2.1_m2fc",
                       MTP = "Bonferroni",
                       nbar = 200, J = 50,
                       power.definition = "min1",
                       M = 3,
                       target.power = 0.80, tol = 0.01,
-                      Tbar = 0.50, alpha = 0.05, numCovar.1 = 5, numCovar.2 = 0,
+                      Tbar = 0.50, alpha = 0.05, numCovar.1 = 5, numCovar.2 = 1,
                       R2.1 = 0.1, R2.2 = 0.7, ICC.2 = 0.05, ICC.3 = 0.4,
-                      tnum = 300,
-                      rho = 0.4 )
+                      max.tnum = 1000,
+                      rho = 0.4, just.result.table = FALSE )
+  pmdesBmin
+  expect_true( pmdesBmin$mdes.results$`Adjusted MDES` < pmdesR$mdes.results$`Adjusted MDES` )
+  expect_true( abs( pmdesBmin$mdes.results$`min1 power` - 0.80) <  0.01 )
 
-  expect_true( pmdes$mdes.results$`Adjusted MDES` < pmdesr$mdes.results$`Adjusted MDES` )
-  expect_true( abs( pmdes$mdes.results$`min1 power` - 0.80) <  0.01 )
-
+  set.seed( 444224 )
   pmdes_comp <- pump_mdes( design = "d2.1_m2fc",
-                      MTP = "Bonferroni",
-                      nbar = 200, J = 50,
-                      power.definition = "complete",
-                      M = 3,
-                      target.power = 0.80, tol = 0.01,
-                      Tbar = 0.50, alpha = 0.05, numCovar.1 = 5, numCovar.2 = 0,
-                      R2.1 = 0.1, R2.2 = 0.7, ICC.2 = 0.05, ICC.3 = 0.4,
-                      tnum = 300,
-                      rho = 0.4 )
+                           MTP = "Bonferroni",
+                           nbar = 200, J = 50,
+                           power.definition = "complete",
+                           M = 3,
+                           target.power = 0.80, tol = 0.01,
+                           Tbar = 0.50, alpha = 0.05, numCovar.1 = 5, numCovar.2 = 1,
+                           R2.1 = 0.1, R2.2 = 0.7, ICC.2 = 0.05, ICC.3 = 0.4,
+                           max.tnum = 300,
+                           rho = 0.4, just.result.table = FALSE )
   pmdes_comp
   expect_true( pmdes_comp$mdes.results$`Adjusted MDES` > pmdesB$mdes.results$`Adjusted MDES` )
-  expect_true( abs( pmdes$mdes.results$`min1 power` - 0.80) <  0.01 )
+  expect_true( abs( pmdes_comp$mdes.results$`complete power` - 0.80) <  0.01 )
 
-  pp = pump_power( design = "d2.1_m2fc",
+  ppBcomp <- pump_power(
+                   design = "d2.1_m2fc",
                    MTP = "Bonferroni",
                    MDES = rep( pmdes_comp$mdes.results$`Adjusted MDES`, 3 ),
                    nbar = 200, J = 50,
                    M = 3,
-                   Tbar = 0.50, alpha = 0.05, numCovar.1 = 5, numCovar.2 = 0,
+                   Tbar = 0.50, alpha = 0.05, numCovar.1 = 5, numCovar.2 = 1,
                    R2.1 = 0.1, R2.2 = 0.7, ICC.2 = 0.05, ICC.3 = 0.4,
                    rho = 0.4 )
-  pp
-  expect_true( abs( pp[2,"complete"] - 0.80 ) <= 0.02)
 
+  ppBcomp
+  expect_true( abs( ppBcomp[2,"complete"] - 0.80 ) <= 0.02)
 
-  pp = pump_power( design = "d2.1_m2fc",
+  pmdesBmin$mdes.results
+  ppBmin <- pump_power(
+                   design = "d2.1_m2fc",
                    MTP = "Bonferroni",
-                   MDES = rep( pmdes$mdes.results$`Adjusted MDES`, 3 ),
+                   MDES = rep( pmdesBmin$mdes.results$`Adjusted MDES`, 3 ),
                    nbar = 200, J = 50,
                    M = 3,
-                   Tbar = 0.50, alpha = 0.05, numCovar.1 = 5, numCovar.2 = 0,
+                   Tbar = 0.50, alpha = 0.05, numCovar.1 = 5, numCovar.2 = 1,
                    R2.1 = 0.1, R2.2 = 0.7, ICC.2 = 0.05, ICC.3 = 0.4,
                    rho = 0.4 )
-  pp
-  expect_true( abs( pp[2,"min1"] - 0.80 ) <= 0.02)
+  ppBmin
+  expect_true( abs( ppBmin[2,"min1"] - 0.80 ) <= 0.02)
 
 })
 
 
-
-
-
 test_that("pump_mdes runs for D1indiv, Holm", {
+
+  set.seed( 1010101 )
   pmdes <- pump_mdes( design = "d2.1_m2fc",
-               MTP = "Holm",
-               nbar = 200, J = 50,
-               power.definition = "D1indiv",
-               M = 3,
-               target.power = 0.80, tol = 0.01,
-               Tbar = 0.50, alpha = 0.05, numCovar.1 = 5, numCovar.2 = 0,
-               R2.1 = 0.1, R2.2 = 0.7, ICC.2 = 0.05, ICC.3 = 0.4,
-               tnum = 300,
-               rho = 0.4 )
+                      MTP = "Holm",
+                      nbar = 200, J = 50,
+                      power.definition = "D1indiv",
+                      M = 3,
+                      target.power = 0.80, tol = 0.01,
+                      Tbar = 0.50, alpha = 0.05, numCovar.1 = 5, numCovar.2 = 1,
+                      R2.1 = 0.1, R2.2 = 0.7, ICC.2 = 0.05, ICC.3 = 0.4,
+                      max.tnum = 300,
+                      rho = 0.4, just.result.table = FALSE )
 
   pmdes
   expect_true( pmdes$mdes.results$`Adjusted MDES` > 0 )
@@ -113,12 +117,36 @@ test_that("pump_mdes runs for D1indiv, Holm", {
                    MDES = rep( pmdes$mdes.results$`Adjusted MDES`, 3 ),
                    nbar = 200, J = 50,
                    M = 3,
-                   Tbar = 0.50, alpha = 0.05, numCovar.1 = 5, numCovar.2 = 0,
+                   Tbar = 0.50, alpha = 0.05, numCovar.1 = 5, numCovar.2 = 1,
                    R2.1 = 0.1, R2.2 = 0.7, ICC.2 = 0.05, ICC.3 = 0.4,
                    rho = 0.4 )
   pp
   expect_true( abs( pp[2,1] - 0.80 ) <= 0.02)
 })
+
+
+
+test_that("pump_mdes runs for d1.1_m2cc", {
+
+  set.seed( 10130103 )
+  R2.1 = 0.61
+  pmdes <- pump_mdes(design = "d1.1_m2cc", MTP = "Holm",
+                     target.power = 0.80, power.definition = "min1", tol = 0.02,
+                     R2.1 = R2.1, numCovar.1 = 1, J = 1,
+                     max.tnum = 1000,
+                     M = 3, nbar = 12, Tbar = 1/3, alpha = 0.10, rho = 0.5,
+                     just.result.table = FALSE )
+  pmdes
+
+  ES = pmdes$mdes.results$`Adjusted MDES`
+  ppow <- pump_power(design = "d1.1_m2cc", MTP = "Holm", MDES = ES,
+             R2.1 = R2.1, numCovar.1 = 1,
+             M = 3, nbar = 12, Tbar = 1/3, alpha = 0.10, rho = 0.5 )
+  ppow
+
+  expect_true( !is.null( pmdes ) )
+  expect_true( abs( ppow$min1[[2]]- 0.80 ) <= 0.02 )
+} )
 
 
 

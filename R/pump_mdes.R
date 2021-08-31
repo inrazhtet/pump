@@ -6,45 +6,21 @@
 #' The goal is to find the MDES value that satisfies the tolerance set in the
 #' parameter in the power value.
 #'
-#' @param design a single RCT design (see list/naming convention)
-#' @param MTP a single multiple adjustment procedure of interest. Supported
-#'   options: Bonferroni, BH, Holm, WY-SS, WY-SD
+#' @inheritParams pump_power
+#'
 #' @param target.power Target power to arrive at
 #' @param power.definition must be a valid power type outputted by power
 #'   function, i.e. D1indiv, min1, etc.
 #' @param tol tolerance for target power
-#' @param M scalar; the number of hypothesis tests (outcomes)
-#' @param J scalar; the number of schools
-#' @param K scalar; the number of districts
-#' @param nbar scalar; the harmonic mean of the number of units per school
-#' @param Tbar scalar; the proportion of samples that are assigned to the
-#'   treatment
-#' @param alpha scalar; the family wise error rate (FWER)
-#' @param numCovar.1 scalar; number of Level 1 (individual) covariates (not
-#'   including block dummies)
-#' @param numCovar.2 scalar; number of Level 2 (school) covariates
-#' @param numCovar.3 scalar; number of Level 3 (district) covariates
-#' @param R2.1 scalar, or vector of length M; percent of variation explained by
-#'   Level 1 covariates for each outcome
-#' @param R2.2 scalar, or vector of length M; percent of variation explained by
-#'   Level 2 covariates for each outcome
-#' @param R2.3 scalar, or vector of length M; percent of variation explained by
-#'   Level 3 covariates for each outcome
-#' @param ICC.2 scalar; school intraclass correlation
-#' @param ICC.3 scalar; district intraclass correlation
-#' @param omega.2 scalar; ratio of school effect size variability to random
-#'   effects variability
-#' @param omega.3 scalar; ratio of district effect size variability to random
-#'   effects variability
-#' @param rho scalar; correlation between outcomes
-#' @param tnum scalar; the number of test statistics (samples)
-#' @param B scalar; the number of samples/permutations for Westfall-Young
+#'
 #' @param max.steps how many steps allowed before terminating
-#' @param max.cum.tnum maximum cumulative number of samples
+#' @param max.tnum maximum cumulative number of samples
 #' @param final.tnum number of samples for final draw
 #' @param cl cluster object to use for parallel processing
 #' @param updateProgress the callback function to update the progress bar (User
 #'   does not have to input anything)
+#' @param just.result.table TRUE means only return final answer, FALSE means
+#'   return search path information.
 #'
 #' @importFrom stats qt
 #' @return mdes results
@@ -52,16 +28,17 @@
 #'
 
 pump_mdes <- function(
-  design, MTP, M, J, K = 1,
+  design, MTP = NULL, M, J, K = 1, numZero = NULL,
   target.power, power.definition, tol,
   nbar, Tbar, alpha,
   numCovar.1 = 0, numCovar.2 = 0, numCovar.3 = 0,
   R2.1 = 0, R2.2 = 0, R2.3 = 0,
   ICC.2 = 0, ICC.3 = 0,
-  rho, omega.2 = 0, omega.3 = 0,
-  tnum = 10000, B = 1000,
-  max.steps = 20, max.cum.tnum = 5000, start.tnum = 200, final.tnum = 10000,
-  cl = NULL, updateProgress = NULL, give.optimizer.warnings = FALSE
+  rho = NULL, rho.matrix = NULL, omega.2 = 0, omega.3 = 0,
+  B = 1000,
+  max.steps = 20, max.tnum = 2000, start.tnum = 200, final.tnum = 4*max.tnum,
+  cl = NULL, updateProgress = NULL, give.optimizer.warnings = FALSE,
+  just.result.table = TRUE
 )
 {
   if ( missing( "target.power" ) ||  missing( "power.definition" ) || missing( "tol" ) ) {
@@ -70,16 +47,18 @@ pump_mdes <- function(
 
   # validate input parameters
   params.list <- list(
+    MTP = MTP, numZero = numZero,
     M = M, J = J, K = K,
     nbar = nbar, Tbar = Tbar, alpha = alpha,
     numCovar.1 = numCovar.1, numCovar.2 = numCovar.2, numCovar.3 = numCovar.3,
     R2.1 = R2.1, R2.2 = R2.2, R2.3 = R2.3,
     ICC.2 = ICC.2, ICC.3 = ICC.3, omega.2 = omega.2, omega.3 = omega.3,
-    rho = rho
+    rho = rho, rho.matrix = rho.matrix, B = B
   )
   ##
-  params.list <- validate_inputs(design, MTP, params.list, mdes.call = TRUE )
+  params.list <- validate_inputs(design, params.list, mdes.call = TRUE )
   ##
+  MTP <- params.list$MTP
   MDES <- params.list$MDES
   M <- params.list$M; J <- params.list$J; K <- params.list$K
   nbar <- params.list$nbar; Tbar <- params.list$Tbar; alpha <- params.list$alpha
@@ -88,7 +67,20 @@ pump_mdes <- function(
   R2.1 <- params.list$R2.1; R2.2 <- params.list$R2.2; R2.3 <- params.list$R2.3
   ICC.2 <- params.list$ICC.2; ICC.3 <- params.list$ICC.3
   omega.2 <- params.list$omega.2; omega.3 <- params.list$omega.3
-  rho <- params.list$rho
+  rho <- params.list$rho; rho.matrix <- params.list$rho.matrix
+  B <- params.list$B
+
+  # extract power definition
+  pdef <- parse_power_definition( power.definition, M )
+
+  # validate MTP
+  if(MTP == 'None' & !pdef$indiv )
+  {
+    stop('For minimum or complete power, you must provide a MTP.')
+  }
+
+  # information that will be returned to the user
+  mdes.cols <- c("MTP", "Adjusted MDES", paste(power.definition, "power"))
 
   # check if zero power, then return 0 MDES
   if(round(target.power, 2) <= 0)
@@ -144,51 +136,66 @@ pump_mdes <- function(
                       Q.m * (crit.alphaxM + crit.beta),
                       Q.m * (crit.alphaxM - crit.beta))
 
-  pdef <- parse_power_definition( power.definition, M )
+
 
   # MDES is alrady calculated for individual power for raw and Bonferroni
-  if ( pdef$indiv ) {
-    if (MTP == "rawp"){
-      mdes.results <- data.frame(MTP, mdes.raw, target.power)
-      colnames(mdes.results) <- c("MTP", "Adjusted MDES", paste(power.definition, "power"))
-      return (list(mdes.results = mdes.results, tries = NULL))
-    } else if (MTP == "Bonferroni"){
-      mdes.results <- data.frame(MTP, mdes.bf, target.power)
-      colnames(mdes.results) <- c("MTP", "Adjusted MDES", paste(power.definition, "power"))
-      return(list(mdes.results = mdes.results, tries = NULL))
-    }
+  if ( pdef$indiv & MTP == "Bonferroni") {
+    mdes.results <- data.frame(MTP, mdes.bf, target.power)
+    colnames(mdes.results) <- mdes.cols
+    return(list(mdes.results = mdes.results, tries = NULL))
   }
 
-  # complete power
-  if(pdef$complete)
+  # MDES is alrady calculated for individual power for raw and Bonferroni
+  if ( MTP == "None") {
+    mdes.results <- data.frame(MTP, mdes.raw, target.power)
+    colnames(mdes.results) <- mdes.cols
+    return(list(mdes.results = mdes.results, tries = NULL))
+  }
+
+  # MDES will be between raw and bonferroni for many power types
+  mdes.low <- mdes.raw
+  mdes.high <- mdes.bf
+
+  # adjust bounds to capture needed range
+  # for minimum or complete power, expand bounds
+  # note: complete power is a special case of minimum power
+  if(pdef$min)
   {
+    # complete power will have a higher upper bound
     # must detect all individual outcomes
     target.indiv.power <- target.power^(1/M)
     crit.beta <- ifelse(target.indiv.power > 0.5,
                         qt(target.indiv.power, df = t.df),
                         qt(1 - target.indiv.power, df = t.df))
-    mdes.bf   <- ifelse(target.indiv.power > 0.5,
-                        Q.m * (crit.alphaxM + crit.beta),
-                        Q.m * (crit.alphaxM - crit.beta))
-  }
+    mdes.high   <- ifelse(target.indiv.power > 0.5,
+                          Q.m * (crit.alphaxM + crit.beta),
+                          Q.m * (crit.alphaxM - crit.beta))
 
-  # min power
-  if(pdef$min)
-  {
-    # min1 power is going to be a lower bound
+
+
+    # min1 power will have a lower lower bound
     # must detect at least one individual outcome
     min.target.indiv.power <- 1 - (1 - target.power)^(1/M)
     crit.beta <- ifelse(min.target.indiv.power > 0.5,
                         qt(min.target.indiv.power, df = t.df),
                         qt(1 - min.target.indiv.power, df = t.df))
-    mdes.raw  <- ifelse(min.target.indiv.power > 0.5,
+    mdes.low  <- ifelse(min.target.indiv.power > 0.5,
                         Q.m * (crit.alpha + crit.beta),
                         Q.m * (crit.alpha - crit.beta))
+
+
   }
 
-  # MDES will be between raw and bonferroni
-  mdes.low <- mdes.raw
-  mdes.high <- mdes.bf
+  # unlikely, but just in case
+  if(mdes.high < 0)
+  {
+    mdes.high <- 0
+  }
+  # corner case
+  if(mdes.low < 0)
+  {
+    mdes.low <- 0
+  }
 
   test.pts <- optimize_power(design, search.type = 'mdes', MTP,
                              target.power, power.definition, tol,
@@ -203,15 +210,20 @@ pump_mdes <- function(
                              ICC.2 = ICC.2, ICC.3 = ICC.3,
                              rho = rho, omega.2 = omega.2, omega.3 = omega.3,
                              B = B, cl = cl,
-                             max.steps = max.steps, max.cum.tnum = max.cum.tnum,
+                             max.steps = max.steps, max.tnum = max.tnum,
                              final.tnum = final.tnum, give.warnings = give.optimizer.warnings)
 
+
   mdes.results <- data.frame(MTP, test.pts$pt[nrow(test.pts)], test.pts$power[nrow(test.pts)])
-  colnames(mdes.results) <- c("MTP", "Adjusted MDES", paste(power.definition, "power"))
+  colnames(mdes.results) <- mdes.cols
 
-  return(list(mdes.results = mdes.results, test.pts = test.pts))
-
+  if ( just.result.table ) {
+    return( mdes.results )
+  } else {
+    return(list(mdes.results = mdes.results, test.pts = test.pts))
+  }
 }
+
 
 
 
