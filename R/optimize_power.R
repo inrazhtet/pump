@@ -116,7 +116,9 @@ optimize_power <- function(design, search.type, MTP, target.power, power.definit
         stop(paste0('Please provide a valid power definition. Provided definition: ', power.definition,
              '. Available options: ', paste(colnames(pt.power.results), collapse = ', ')))
       }
-      test.pts$power[i] <- pt.power.results[MTP, power.definition]
+      test.pts$power[i] <- pt.power.results[
+        pt.power.results$MTP == MTP, power.definition
+      ]
     }
   }
 
@@ -128,6 +130,7 @@ optimize_power <- function(design, search.type, MTP, target.power, power.definit
   optimizer.warnings <- NULL
 
   # Based on initial grid, pick best guess for search.
+  current.try = median( test.pts$pt )
   tryCatch(
     current.try <- find_best(
       test.pts = test.pts, target.power = target.power,
@@ -195,7 +198,9 @@ optimize_power <- function(design, search.type, MTP, target.power, power.definit
 
     current.power.results <- power_check( current.try, current.tnum )
 
-    current.power <- current.power.results[MTP, power.definition]
+    current.power <- current.power.results[
+      current.power.results$MTP == MTP, power.definition
+    ]
 
     iter.results <- data.frame(
       step = step, pt = current.try, power = current.power, w = current.tnum,
@@ -208,7 +213,9 @@ optimize_power <- function(design, search.type, MTP, target.power, power.definit
       check.power.tnum <- pmin(10 * current.tnum, max.tnum)
 
       check.power.results <- power_check( current.try, check.power.tnum )
-      check.power <- check.power.results[MTP, power.definition]
+      check.power <- check.power.results[
+        check.power.results$MTP == MTP, power.definition
+      ]
 
       current.power <- (current.tnum*current.power + check.power.tnum*check.power)/(current.tnum+check.power.tnum)
 
@@ -227,7 +234,9 @@ optimize_power <- function(design, search.type, MTP, target.power, power.definit
     if(abs(current.power - target.power) < tol)
     {
       final.power.results <- power_check( current.try, final.tnum )
-      current.power <- final.power.results[MTP, power.definition]
+      current.power <- final.power.results[
+        final.power.results$MTP == MTP, power.definition
+      ]
 
       iter.results <- data.frame(
         step = step, pt = current.try, power = current.power,

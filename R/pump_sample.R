@@ -375,6 +375,8 @@ pump_sample_raw <- function(
 
 
 
+
+
 #' Calculate sample size
 #'
 #' Given other design parameters, do a search to find the needed sample size to
@@ -409,6 +411,13 @@ pump_sample <- function(
   just.result.table = TRUE,
   use.logit = FALSE,
   verbose = FALSE )  {
+
+  if ( verbose ) {
+    scat( "pump_mdes with %d max iterations per search, starting at %d iterations with final %d iterations.\n\tMax steps %d\n\t%d perms for WY if used\n",
+          max.tnum, start.tnum, final.tnum, max.steps, B )
+  }
+
+
   # Give prelim values for the validation of parameters process.
   if ( typesample == "nbar" ) {
     stopifnot( is.null( nbar ) )
@@ -478,13 +487,17 @@ pump_sample <- function(
     message('Target power of 0 requested')
     ss.results <- data.frame(MTP, typesample, 0, 0)
     colnames(ss.results) <- output.colnames
-    return(ss.results)
+    return( make.pumpresult( ss.results, type="sample", params.list=params.list,
+                             tries = NULL,
+                             just.result.table = just.result.table ) )
   }
 
   # Checks on what we are estimating, sample size
-  message(paste("Estimating sample size of type", typesample, "for",
-                MTP, "for target",
-                power.definition, "power of", round(target.power, 4)))
+  if ( verbose ) {
+    message(paste("Estimating sample size of type", typesample, "for",
+                  MTP, "for target",
+                  power.definition, "power of", round(target.power, 4)))
+  }
 
   # Progress Message for the Type of Sample we are estimating, the type of power
   # and the targeted power value
@@ -493,9 +506,6 @@ pump_sample <- function(
                   "power of",round(power,4)))
     updateProgress(message = msg)
   }
-
-
-  pdef <- parse_power_definition( power.definition, M )
 
   # adjust bounds to capture needed range
   # for minimum or complete power, expand bounds
@@ -565,10 +575,12 @@ pump_sample <- function(
   ss.high <- ss.high[[1]]
 
   # Done if Bonferroni is what we are looking for
-  if (MTP == "Bonferroni") {
+  if (MTP == "Bonferroni" & pdef$indiv ) {
     ss.results <- data.frame(MTP, typesample, ss.high, target.power)
     colnames(ss.results) <- output.colnames
-    return(ss.results)
+    return( make.pumpresult( ss.results, tries = NULL,
+                             type="sample", params.list=params.list,
+                             just.result.table = just.result.table ) )
   }
 
   # If we can't make it work with raw, then we can't make it work.
@@ -587,8 +599,7 @@ pump_sample <- function(
     {
       ss.high <- max_sample_size_JK
     }
-    warning( "Using default max sample size for one end of initial bounds of search.\n
-             Estimation may take more time." )
+    warning( "Using default max sample size for one end of initial bounds of search, so estimation may take more time." )
 
     # Why is this here?   It shouldn't be?
     # start.tnum <- 2000
@@ -597,13 +608,13 @@ pump_sample <- function(
   ss.low <- round( ss.low )
   ss.high <- round( ss.high )
 
-  # sometimes we already know the answer!
-  if(ss.low == ss.high)
-  {
-    ss.results <- data.frame(MTP, typesample, 1, target.power)
-    colnames(ss.results) <- output.colnames
-    return(ss.results)
-  }
+  # # sometimes we already know the answer!
+  # if(ss.low == ss.high)
+  # {
+  #   ss.results <- data.frame(MTP, typesample, 1, target.power)
+  #   colnames(ss.results) <- output.colnames
+  #   return(ss.results)
+  # }
 
   # search in the grid from min to max.
   test.pts <- optimize_power(
@@ -635,11 +646,9 @@ pump_sample <- function(
   )
   colnames(ss.results) <- output.colnames
 
-  if ( just.result.table ) {
-    return( ss.results )
-  } else {
-    return(list(ss.results = ss.results, test.pts = test.pts))
-  }
+  return( make.pumpresult( ss.results, type = "sample", params.list = params.list,
+                           just.result.table = just.result.table,
+                           tries = test.pts ) )
 }
 
 

@@ -27,6 +27,7 @@ pump_power_grid(
   omega.3 = NULL,
   rho,
   verbose = FALSE,
+  use_furrr = FALSE,
   drop_unique_columns = TRUE,
   ...
 )
@@ -35,14 +36,15 @@ pump_power_grid(
 \item{design}{a single RCT design (see list/naming convention)}
 
 \item{MTP}{Multiple adjustment procedure of interest. Supported options:
-none, Bonferroni, BH, Holm, WY-SS, WY-SD (passed as strings).  Provide list to
-automatically re-run for each procedure on the list.}
+none, Bonferroni, BH, Holm, WY-SS, WY-SD (passed as strings).  Provide list
+to automatically re-run for each procedure on the list.}
 
 \item{MDES}{This is *not* a list of MDES for each outcome, but rather a list
 of MDES to explore. Each value will be assumed held constant across all M
 outcomes.}
 
-\item{M}{scalar; the number of hypothesis tests (outcomes), including zero outcomes}
+\item{M}{scalar; the number of hypothesis tests (outcomes), including zero
+outcomes}
 
 \item{nbar}{scalar; the harmonic mean of the number of units per school}
 
@@ -50,7 +52,8 @@ outcomes.}
 
 \item{K}{scalar; the number of districts}
 
-\item{numZero}{Additional number of outcomes assumed to be zero. Please provide NumZero + length(MDES) = M}
+\item{numZero}{Additional number of outcomes assumed to be zero. Please
+provide NumZero + length(MDES) = M}
 
 \item{Tbar}{scalar; the proportion of samples that are assigned to the
 treatment}
@@ -105,4 +108,8 @@ pump_power, one for each MDES value given).
 
 Each parameter in the parameter list can be a list, not scalar.  It will
 cross all combinations of the list.
+
+These calls use furrr's future_pmap package to allow for parallel
+computation.  You can use the `setup_default_parallel_plan()` method or your
+own.  If you do nothing, it will default to single session.
 }

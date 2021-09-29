@@ -1,46 +1,4 @@
-
-#' List all the supported designs of the `pum` package.
-#'
-#' List all supported designs, with brief descriptions.
-#'
-#' @param comment = TRUE prints out description of each design or method.  FALSE does not.
-#'
-#' @export
-supported_designs <- function( comment = TRUE) {
-  design = tibble::tribble( ~ Code, ~PowerUp, ~ Comment,
-                   # 1 level design
-                   "d1.1_m2cc", "", "1 level, level 1 randomization / constant intercepts, constant impacts model",
-                   # 2 level designs, randomization at level 1
-                   "d2.1_m2fc", "",  "2 lvls, lvl 1 rand / fixed intercepts, constant impacts",
-                   "d2.1_m2ff", "",  "2 lvls, lvl 1 rand / fixed intercepts, fixed impacts",
-                   "d2.1_m2fr", "",  "2 lvls, lvl 1 rand / fixed intercepts, random impacts",
-                   # 3 lvl design, rand at lvl 1
-                   "d3.1_m3rr2rr", "",  "3 lvls, lvl 1 rand / lvl 3 random intercepts, random impacts, lvl 2 random intercepts, random impacts",
-                   # 2 lvl design, rand at lvl 2
-                   "d2.2_m2rc", "",  "2 lvls, lvl 2 rand / random intercepts, constant impacts",
-                   # 3 lvl design, rand at lvl 3
-                   "d3.3_m3rc2rc", "",  "3 lvls, lvl 3 rand / lvl 3 random intercepts, constant impacts, lvl 2 random intercepts, constant impacts",
-                   # 3 lvl design, rand at lvl 2
-                   "d3.2_m3ff2rc", "blocked_c2_3f",  "3 lvls, lvl 2 rand / lvl 3 fixed intercepts, fixed impacts, lvl 2 random intercepts, constant impacts",
-                   "d3.2_m3rr2rc", "blocked_c2_3r",  "3 lvls, lvl 2 rand / lvl 3 random intercepts, random impacts, lvl 2 random intercepts, constant impacts" )
-
-  design = tidyr::separate( design, Code, into=c("Design","Model"), remove = FALSE, sep="_" )
-
-  adjust = tibble::tribble( ~ Method, ~ Comment,
-                            "Bonferroni", "The classic (and conservative) multiple testing correction",
-                            "Holm", "Bonferroni improved!",
-                            "BH", "Benjamini-Hochberg (False Discovery Rate)",
-                            "WY-SS", "Westfall-Young, Single Step",
-                            "WY-SD", "Westfall-Young, Step Down" )
-
-  if ( !comment ) {
-    design$Comment = NULL
-    adjust$Comment = NULL
-  }
-
-  list( Design=design, Adjustment=adjust )
-}
-
+library( tidyverse )
 
 #' Convert power table from wide to long
 #'
@@ -49,11 +7,13 @@ supported_designs <- function( comment = TRUE) {
 transpose_power_table = function( power_table ) {
 
   pp = t( power_table )
+  colnames(pp) = pp[1,]
+  pp = pp[-1,]
   #if ( ncol( pp ) > 1 ) {
   #  pp = pp[ , ncol(pp):1 ]
   #}
   pows = rownames(pp)
-  pp = pp[ nrow(pp):1, ] %>%
+  pp = pp %>% # pp[ nrow(pp):1, ] %>%
     as.data.frame() %>%
     tibble::rownames_to_column( var="power" )
 
@@ -250,6 +210,7 @@ get.power.results = function(pval.mat, ind.nonzero, alpha, adj = TRUE)
 }
 
 
+
 #' Calculate power using PUMP method
 #'
 #' This functions calculates power for all definitions of power (individual,
@@ -300,8 +261,7 @@ get.power.results = function(pval.mat, ind.nonzero, alpha, adj = TRUE)
 #'   does not have to input anything)
 #' @param long.table TRUE for table with power as rows, correction as columns,
 #'   and with more verbose names.  See `transpose_power_table`.
-#'
-#' @importFrom multtest mt.rawp2adjp
+#' @param verbose Print out diagnostics of time, etc.
 #' @return power results for MTP and unadjusted across all definitions of power
 #' @export
 #'
@@ -320,22 +280,50 @@ pump_power <- function(
   cl = NULL,
   updateProgress = NULL,
   validate.inputs = TRUE,
-  long.table = FALSE
+  long.table = FALSE,
+  verbose = FALSE
 )
 {
   # Call self for each element on MTP list.
   if ( length( MTP ) > 1 ) {
+    if ( verbose ) {
+      scat( "Multiple MTPs leading to %d calls\n", length(MTP) )
+    }
     des = purrr::map( MTP,
-                     pum::pump_power, design=design, MDES=MDES, M=M, J=J, K = K, nbar=nbar,
-                     Tbar=Tbar,
-                     alpha=alpha, numCovar.1 = numCovar.1, numCovar.2 = numCovar.2,
-                     numCovar.3 = numCovar.3, R2.1 = R2.1, R2.2 = R2.2, R2.3 = R2.3,
+                     pump_power, design = design, MDES = MDES,
+                     M = M, J = J, K = K, nbar = nbar,
+                     Tbar = Tbar,
+                     alpha = alpha,
+                     numCovar.1 = numCovar.1, numCovar.2 = numCovar.2,
+                     numCovar.3 = numCovar.3,
+                     R2.1 = R2.1, R2.2 = R2.2, R2.3 = R2.3,
                      ICC.2 = ICC.2, ICC.3 = ICC.3,
-                     rho=rho, omega.2=omega.2, omega.3 = omega.3,
-                     tnum = tnum, B = B, cl = cl, updateProgress = updateProgress )
-    des = do.call( rbind, des )
-    des = des[ -seq( 3, nrow(des), by=2 ), ]
-    return( des )
+                     rho = rho, omega.2 = omega.2, omega.3 = omega.3,
+                     long.table = long.table,
+                     tnum = tnum, B = B, cl = cl,
+                     updateProgress = updateProgress )
+
+    plist = attr( des[[1]], "params.list" )
+    plist$MTP = MTP
+    if ( long.table ) {
+      ftable = des[[1]]
+      for ( i in 2:length(des) ) {
+        ftable = dplyr::bind_cols( ftable, des[[i]][ ncol(des[[i]]) ] )
+      }
+    } else {
+      ftable = des[[1]]
+      for ( i in 2:length(des) ) {
+        ftable = dplyr::bind_rows( ftable, des[[i]][ nrow(des[[i]]), ] )
+      }
+    }
+    return( make.pumpresult( ftable, "power",
+                             params.list = plist,
+                             multiple_MTP = TRUE,
+                             long.table=long.table ) )
+
+    #des = map( des, ~ .x[nrow(.x),] ) %>%
+    #  dplyr::bind_rows()
+    #return( des )
   }
 
   if(validate.inputs)
@@ -351,7 +339,7 @@ pump_power <- function(
       rho = rho, rho.matrix = rho.matrix, B = B
     )
 
-    params.list <- validate_inputs(design, params.list)
+    params.list <- validate_inputs(design, params.list, power.call = TRUE)
 
     MTP <- params.list$MTP
     MDES <- params.list$MDES
@@ -364,6 +352,8 @@ pump_power <- function(
     omega.2 <- params.list$omega.2; omega.3 <- params.list$omega.3
     rho <- params.list$rho; rho.matrix <- params.list$rho.matrix
     B <- params.list$B
+  } else {
+    params.list = NULL
   }
 
   # compute test statistics for when null hypothesis is false
@@ -399,39 +389,31 @@ pump_power <- function(
     updateProgress(message = "P-values have been generated!")
   }
 
-  grab.pval <- function(...,proc) {return(...$adjp[order(...$index),proc])}
-
-  adjp = NULL
   if (MTP == "Bonferroni"){
 
-    adjp <- apply(rawp.mat, 1, multtest::mt.rawp2adjp, proc = "Bonferroni", alpha = alpha)
-    adjp <- do.call(rbind, lapply(adjp, grab.pval, proc = "Bonferroni"))
+    adjp <- t(apply(rawp.mat, 1, p.adjust, method = "bonferroni"))
 
   } else if (MTP == "Holm") {
 
-    adjp <- apply(rawp.mat, 1, multtest::mt.rawp2adjp, proc = "Holm", alpha = alpha)
-    adjp <- do.call(rbind, lapply(adjp, grab.pval, proc = "Holm"))
+    adjp <- t(apply(rawp.mat, 1, p.adjust, method = "holm"))
 
   } else if (MTP == "BH") {
 
-    adjp <- apply(rawp.mat, 1, multtest::mt.rawp2adjp, proc = c("BH"), alpha = alpha)
-    adjp <- do.call(rbind, lapply(adjp, grab.pval, proc = "BH"))
-
-  } else if(MTP == "rawp") {
-
-    adjp <- rawp.mat
+    adjp <- t(apply(rawp.mat, 1, p.adjust, method = "hochberg"))
 
   } else if (MTP == "WY-SS"){
 
-    adjp <- adjp.wyss(rawt.mat = rawt.mat, B = B, Sigma = Sigma, t.df = t.df)
+    adjp <- adjp.wyss(rawt.mat = rawt.mat, B = B,
+                      Sigma = Sigma, t.df = t.df)
 
   } else if (MTP == "WY-SD"){
 
-    adjp <- adjp.wysd(rawt.mat = rawt.mat, B = B, Sigma = Sigma, t.df = t.df, cl = cl)
+    adjp <- adjp.wysd(rawt.mat = rawt.mat, B = B,
+                      Sigma = Sigma, t.df = t.df, cl = cl)
 
-  } else if ( MTP != "None") {
-
-    stop(paste("Unknown MTP:", MTP))
+  } else
+  {
+    adjp <- NULL
   }
 
   if (is.function(updateProgress) & !is.null(adjp)){
@@ -439,18 +421,20 @@ pump_power <- function(
   }
 
   ind.nonzero <- MDES > 0
-  power.results <- get.power.results(rawp.mat, ind.nonzero, alpha, adj = FALSE)
+  power.results.raw <- get.power.results(rawp.mat, ind.nonzero, alpha, adj = FALSE)
 
-  if ( !is.null( adjp ) ) {
+  if ( MTP != 'None' ) {
     power.results.proc <- get.power.results(adjp, ind.nonzero, alpha, adj = TRUE)
-    power.results <- data.frame(rbind(power.results, power.results.proc))
-    rownames(power.results) <- c('rawp', MTP)
+    power.results <- data.frame(rbind(power.results.raw, power.results.proc))
+    power.results <- cbind('MTP' = c('None', MTP), power.results)
   } else {
-    rownames(power.results) = "rawp"
+    power.results <- cbind('MTP' = 'None', power.results.raw)
   }
   if ( long.table ) {
-    power.results = transpose_power_table( power.results )
+    power.results <- transpose_power_table( power.results )
   }
-  return(power.results)
+  return( make.pumpresult( power.results, "power",
+                           params.list = params.list,
+                           long.table = long.table ) )
 }
 

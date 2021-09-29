@@ -29,6 +29,7 @@ pump_mdes_grid(
   omega.3 = NULL,
   rho,
   verbose = FALSE,
+  use_furrr = FALSE,
   drop_unique_columns = TRUE,
   ...
 )
@@ -37,10 +38,11 @@ pump_mdes_grid(
 \item{design}{a single RCT design (see list/naming convention)}
 
 \item{MTP}{Multiple adjustment procedure of interest. Supported options:
-none, Bonferroni, BH, Holm, WY-SS, WY-SD (passed as strings).  Provide list to
-automatically re-run for each procedure on the list.}
+none, Bonferroni, BH, Holm, WY-SS, WY-SD (passed as strings).  Provide list
+to automatically re-run for each procedure on the list.}
 
-\item{M}{scalar; the number of hypothesis tests (outcomes), including zero outcomes}
+\item{M}{scalar; the number of hypothesis tests (outcomes), including zero
+outcomes}
 
 \item{target.power}{Target power to arrive at}
 
@@ -54,6 +56,9 @@ function, i.e. D1indiv, min1, etc.}
 \item{J}{scalar; the number of schools}
 
 \item{K}{scalar; the number of districts}
+
+\item{numZero}{Additional number of outcomes assumed to be zero. Please
+provide NumZero + length(MDES) = M}
 
 \item{Tbar}{scalar; the proportion of samples that are assigned to the
 treatment}
@@ -90,6 +95,8 @@ variation).}
 
 \item{rho}{scalar; assumed correlation between the test statistics of the
 tests.}
+
+\item{verbose}{Print out diagnostics of time, etc.}
 }
 \description{
 Run pump_mdes on combination of factors
