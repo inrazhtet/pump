@@ -14,7 +14,7 @@ pump_power_grid(
   K = 1,
   numZero = NULL,
   Tbar,
-  alpha,
+  alpha = 0.05,
   numCovar.1 = NULL,
   numCovar.2 = NULL,
   numCovar.3 = NULL,
@@ -52,7 +52,7 @@ outcomes}
 
 \item{K}{scalar; the number of districts}
 
-\item{numZero}{Additional number of outcomes assumed to be zero. Please
+\item{numZero}{scalar; Additional number of outcomes assumed to be zero. Please
 provide NumZero + length(MDES) = M}
 
 \item{Tbar}{scalar; the proportion of samples that are assigned to the
@@ -76,26 +76,30 @@ Level 2 covariates for each outcome. Defaults to 0.}
 \item{R2.3}{scalar, or vector of length M; percent of variation explained by
 Level 3 covariates for each outcome. Defaults to 0.}
 
-\item{ICC.2}{scalar; school intraclass correlation}
+\item{ICC.2}{scalar, or vector of length M; school intraclass correlation}
 
-\item{ICC.3}{scalar; district intraclass correlation}
+\item{ICC.3}{scalar, or vector length M; district intraclass correlation}
 
-\item{omega.2}{scalar; ratio of variance of school-average impacts to
+\item{omega.2}{scalar, or vector of length M; ratio of variance of school-average impacts to
 variance of school-level random intercepts.  Default to 0 (no treatment
 variation).}
 
-\item{omega.3}{scalar; ratio of variance of district-average impacts to
+\item{omega.3}{scalar, or vector of length M; ratio of variance of district-average impacts to
 variance of district-level random intercepts. Default to 0 (no treatment
 variation).}
 
-\item{rho}{scalar; assumed correlation between the test statistics of the
-tests.}
+\item{rho}{scalar; assumed correlation between all pairs of test statistics.}
 
 \item{verbose}{TRUE means print out some text as calls processed.  FALSE do
 not.}
 
+\item{use_furrr}{Use parallel processing furrr package to fit grid.}
+
 \item{drop_unique_columns}{Drop all parameter colunms that did not vary
 across the grid.}
+
+\item{...}{Extra arguments passed to the underlying pump_power, pump_sample,
+or pump_mdes functions.}
 }
 \description{
 This extenstion of `pump_power()` will take lists of parameter values and run
@@ -113,3 +117,9 @@ These calls use furrr's future_pmap package to allow for parallel
 computation.  You can use the `setup_default_parallel_plan()` method or your
 own.  If you do nothing, it will default to single session.
 }
+\seealso{
+Other grid functions: 
+\code{\link{pump_mdes_grid}()},
+\code{\link{pump_sample_grid}()}
+}
+\concept{grid functions}

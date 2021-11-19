@@ -106,13 +106,13 @@ test_that("p-values match", {
 # test p values across multiple iterations
 #----------------------------------------------------#
 
-rawt.matrix <- rbind(
+rawt.mat <- rbind(
   c(1.5, 2, 3),
   c(0, -1.5, -3)
 )
 
 set.seed(458738957)
-adjp <- adjp.wyss(rawt.matrix = rawt.matrix, B, sigma, t.df)
+adjp <- adjp.wyss(rawt.mat = rawt.mat, B, sigma, t.df)
 
 # null t
 # t = 1
@@ -348,12 +348,12 @@ test_that("Montonicity is correct", {
 # test order matrix
 #----------------------------------------------------#
 
-rawt.matrix = rbind(
+rawt.mat = rbind(
   c(0.8, 0.4, 3),
   c(0.3, 1, 0.1)
 )
 
-rawt.order.matrix <- t(apply(abs(rawt.matrix), 1, order, decreasing = TRUE))
+rawt.order.matrix <- t(apply(abs(rawt.mat), 1, order, decreasing = TRUE))
 exp.rawt.order.matrix <- rbind(
   c(3, 1, 2),
   c(2, 1, 3)
@@ -391,15 +391,15 @@ test_that("P value output matches", {
 #----------------------------------------------------#
 
 #--------------------------#
-rawt.matrix = rbind(
+rawt.mat = rbind(
   c(0.8, -0.4, 3),
   c(0.3, 1, 0.1)
 )
 B <- 100
 set.seed(4335)
-adjp.sd <- adjp.wysd(rawt.matrix, B, sigma, t.df, cl = NULL)
+adjp.sd <- adjp.wysd(rawt.mat, B, sigma, t.df, cl = NULL)
 set.seed(4335)
-adjp.ss <- adjp.wyss(rawt.matrix, B, sigma, t.df)
+adjp.ss <- adjp.wyss(rawt.mat, B, sigma, t.df)
 test_that("Smallest p-value should match", {
   expect_equal(adjp.sd[1,3], adjp.ss[1,3])
 })
@@ -410,7 +410,7 @@ test_that("Smallest p-value should match", {
 
 # calculate by hand
 #--------------------------#
-rawt.matrix = rbind(
+rawt.mat = rbind(
   c(0.8, -0.4, 3),
   c(0.3, 1, 0.1)
 )
@@ -424,7 +424,7 @@ B <- 2
 # [2,] -1.0086968 -0.6327400480  0.8786953
 
 set.seed(4334)
-adjp <- adjp.wysd(rawt.matrix, B, sigma, t.df, cl = NULL)
+adjp <- adjp.wysd(rawt.mat, B, sigma, t.df, cl = NULL)
 exp.adjp = rbind(
   c(0.5, 0.5, 0),
   c(1, 0.5, 1)
@@ -434,54 +434,3 @@ test_that("P value output matches", {
   expect_equal(adjp, exp.adjp)
 })
 #--------------------------#
-
-
-#----------------------------------------------------#
-# compare to multtest
-#----------------------------------------------------#
-
-# set.seed(0217)
-# B <- 10000
-#
-# # generate fake input data
-# M <- 3
-# N <- 100
-# # treatment vector
-# T.x <- sample(c(rep(1, 50), rep(0, 50)))
-# # X has a treatment effect
-# X <- matrix(NA, nrow = M, ncol = N)
-# X[1,] <- 2 * T.x + rnorm(N)
-# X[2,] <- 0 * T.x + rnorm(N)
-# X[3,] <- -4 * T.x + rnorm(N)
-#
-# # calc rawt
-# rawt <- apply(X, 1, function(x){ return(t.test(x[T.x == 1], x[T.x == 0])$statistic) })
-#
-#
-# # multtest
-# set.seed(0217)
-# # suppress output
-# sink("/dev/null")
-# mult.out <- multtest::mt.maxT(X, classlabel = T.x, B = B)
-# mult.adjp <- mult.out$adjp[order(mult.out$index)]
-# sink()
-#
-# # my version
-# rawt.order <- order(abs(rawt), decreasing = TRUE)
-# set.seed(0217)
-# # get nullt
-# nullt <- NULL
-# # get nullt
-# for(b in 1:B)
-# {
-#   T.x.b <- sample(c(rep(1, 50), rep(0, 50)))
-#   nullt.b <- apply(X, 1, function(x){ return(t.test(x[T.x.b == 1], x[T.x.b == 0])$statistic) })
-#   nullt <- rbind(nullt, nullt.b)
-# }
-#
-# ind.B <- t(apply(nullt, 1, comp.rawt.sd, rawt = rawt, rawt.order = rawt.order))
-# exp.adjp <- get.adjp.minp(ind.B, rawt.order)
-#
-# test_that("P value output matches within 5%", {
-#   expect_equal(mult.adjp, exp.adjp, tol = 0.05)
-# })

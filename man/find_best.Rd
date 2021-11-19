@@ -11,14 +11,14 @@ find_best(test.pts, target.power, gamma = 1.5)
 
 \item{target.power}{goal power}
 
-\item{start.low}{lower bound}
-
-\item{start.high}{upper bound}
-
-\item{alternate}{alternate point to return if quadratic fit fails}
+\item{gamma}{Number > 1. The amount we can extend our search range up (gamma)
+or down (1/gamma) if we want to search outside our current boundaries.  1
+means do not extend (which will potentially cause search to stall, not
+recommended).}
 }
 \value{
-root of quadratic curve
+List of estimate of when curve reaches target.power, derivative of
+  curve at that point, and parameters of the fit curve.
 }
 \description{
 Extract roots from quadratic curve based on given evaluated points

@@ -14,16 +14,18 @@
 #' @param target.power Target power to arrive at
 #' @param power.definition must be a valid power type outputted by power
 #'   function, i.e. D1indiv, min1, etc.
-#' @param tol tolerance for target power
+#' @param tol tolerance for target power, defaults to 0.01 (1%).  This parameter
+#'   controls when the search is done: when estimated power (checked with
+#'   `final.tnum` iterations) is within `tol`, the search stops.
 #'
 #' @param max.steps how many steps allowed before terminating
+#' @param start.tnum number of samples for first iteration of search algorithm
 #' @param max.tnum maximum cumulative number of samples
 #' @param final.tnum number of samples for final draw
 #' @param cl cluster object to use for parallel processing
 #' @param updateProgress the callback function to update the progress bar (User
 #'   does not have to input anything)
-#' @param just.result.table TRUE means only return final answer, FALSE means
-#'   return search path information.
+#' @param give.optimizer.warnings whether to return verbose optimizer warnings
 #'
 #' @importFrom stats qt
 #' @return mdes results
@@ -31,32 +33,83 @@
 #'
 
 pump_mdes <- function(
-  design, MTP = NULL, M, J, K = 1, numZero = NULL,
-  target.power, power.definition, tol,
-  nbar, Tbar, alpha,
+  design, MTP = NULL, M, nbar, J, K = 1,
+  Tbar, alpha = 0.05,
+  target.power, power.definition, tol = 0.01,
   numCovar.1 = 0, numCovar.2 = 0, numCovar.3 = 0,
   R2.1 = 0, R2.2 = 0, R2.3 = 0,
   ICC.2 = 0, ICC.3 = 0,
-  rho = NULL, rho.matrix = NULL, omega.2 = 0, omega.3 = 0,
+  omega.2 = 0, omega.3 = 0,
+  rho = NULL, rho.matrix = NULL,
   B = 1000,
   max.steps = 20, max.tnum = 2000, start.tnum = 200, final.tnum = 4*max.tnum,
   cl = NULL, updateProgress = NULL, give.optimizer.warnings = FALSE,
-  just.result.table = TRUE,
   verbose = FALSE
 )
 {
+
+  # Call self for each element on MTP list.
+
+  # NOTE: This is not well defined because do we store search history or what
+  # when we have multiple calls to different MTPs?
+
+  # if ( length( MTP ) > 1 ) {
+  #   if ( verbose ) {
+  #     scat( "Multiple MTPs leading to %d calls\n", length(MTP) )
+  #   }
+  #   des = purrr::map( MTP,
+  #                     pump_mdes, design = design,
+  #                     target.power = target.power, power.definition = power.definition, tol = tol,
+  #                     M = M, J = J, K = K, nbar = nbar,
+  #                     Tbar = Tbar, alpha = alpha,
+  #                     numCovar.1 = numCovar.1, numCovar.2 = numCovar.2, numCovar.3 = numCovar.3,
+  #                     R2.1 = R2.1, R2.2 = R2.2, R2.3 = R2.3,
+  #                     ICC.2 = ICC.2, ICC.3 = ICC.3,
+  #                     omega.2 = omega.2, omega.3 = omega.3,
+  #                     rho = rho, rho.matrix = rho.matrix,
+  #                     B = B,
+  #                     max.steps = max.steps, max.tnum = max.tnum, start.tnum = start.tnum, final.tnum = final.tnum,
+  #                     cl = cl, updateProgress = updateProgress, give.optimizer.warnings = give.optimizer.warnings,
+  #                     verbose = verbose )
+  #
+  #   plist = attr( des[[1]], "params.list" )
+  #   plist$MTP = MTP
+  #     ftable = des[[1]]
+  #     for ( i in 2:length(des) ) {
+  #       ftable = dplyr::bind_rows( ftable, des[[i]] )
+  #     }
+  #
+  #   return( make.pumpresult( ftable, "mdes",
+  #                            params.list = plist,
+  #                            design = design,
+  #                            multiple_MTP = TRUE ) )
+  #
+  #   #des = map( des, ~ .x[nrow(.x),] ) %>%
+  #   #  dplyr::bind_rows()
+  #   #return( des )
+  # }
+
+
+
   if ( verbose ) {
     scat( "pump_mdes with %d max iterations per search, starting at %d iterations with final %d iterations (%d perms for WY if used)\n",
           max.tnum, start.tnum, final.tnum, B )
   }
 
-  if ( missing( "target.power" ) ||  missing( "power.definition" ) || missing( "tol" ) ) {
-    stop( "target.power, power.definition, or tol (tolerance) not supplied" )
+  if ( missing( "target.power" ) ||  missing( "power.definition" )  ) {
+    stop( "target.power or power.definition not supplied" )
   }
+  if ( is.null( "tol" ) ) {
+    stop( "Cannot have NULL tol (tolerance)" )
+  }
+
+  pow_params <- list( target.power=target.power,
+                      power.definition = power.definition,
+                      tol = tol )
 
   # validate input parameters
   params.list <- list(
-    MTP = MTP, numZero = numZero,
+    MTP = MTP,
     M = M, J = J, K = K,
     nbar = nbar, Tbar = Tbar, alpha = alpha,
     numCovar.1 = numCovar.1, numCovar.2 = numCovar.2, numCovar.3 = numCovar.3,
@@ -65,7 +118,7 @@ pump_mdes <- function(
     rho = rho, rho.matrix = rho.matrix, B = B
   )
   ##
-  params.list <- validate_inputs(design, params.list, mdes.call = TRUE )
+  params.list <- validate_inputs(design, params.list, mdes.call = TRUE)
   ##
   MTP <- params.list$MTP
   MDES <- params.list$MDES
@@ -96,10 +149,12 @@ pump_mdes <- function(
   {
     message('Target power of 0 (or negative) requested')
     mdes.results <- data.frame(MTP, 0, 0)
-    colnames(mdes.results) <- c("MTP", "Adjusted MDES", paste(power.definition, "power"))
+    colnames(mdes.results) <- mdes.cols
     return( make.pumpresult( mdes.results,
                              type = "mdes",
-                              params.list = params.list) )
+                             design = design,
+                             power.params.list = pow_params,
+                             params.list = params.list) )
   }
 
   # check if max power, then return infinite MDES
@@ -107,9 +162,11 @@ pump_mdes <- function(
   {
     message('Target power of 1 (or larger) requested')
     mdes.results <- data.frame(MTP, Inf, 1)
-    colnames(mdes.results) <- c("MTP", "Adjusted MDES", paste(power.definition, "power"))
+    colnames(mdes.results) <- mdes.cols
     return( make.pumpresult( mdes.results,
                              type = "mdes",
+                             design = design,
+                             power.params.list = pow_params,
                              params.list = params.list) )
   }
 
@@ -156,13 +213,17 @@ pump_mdes <- function(
     mdes.results <- data.frame(MTP, mdes.bf, target.power)
     colnames(mdes.results) <- mdes.cols
     return( make.pumpresult( mdes.results, type = "mdes",
-                              params.list = params.list ) )
+                             design = design,
+                             power.params.list = pow_params,
+                             params.list = params.list ) )
   }
 
   if ( MTP == "None") {
     mdes.results <- data.frame(MTP, mdes.raw, target.power)
     colnames(mdes.results) <- mdes.cols
     return( make.pumpresult( mdes.results, type = "mdes",
+                             design = design,
+                             power.params.list = pow_params,
                              params.list = params.list ) )
   }
 
@@ -209,7 +270,7 @@ pump_mdes <- function(
     mdes.low <- 0
   }
 
-  optim.out <-optimize_power(design, search.type = 'mdes', MTP,
+  test.pts <- optimize_power(design, search.type = 'mdes', MTP,
                              target.power, power.definition, tol,
                              start.tnum,
                              start.low = mdes.low, start.high = mdes.high,
@@ -225,8 +286,6 @@ pump_mdes <- function(
                              max.steps = max.steps, max.tnum = max.tnum,
                              final.tnum = final.tnum, give.warnings = give.optimizer.warnings)
 
-  test.pts <- optim.out$test.pts
-
 
   mdes.results <- data.frame(
     MTP,
@@ -235,10 +294,23 @@ pump_mdes <- function(
   )
   colnames(mdes.results) <- mdes.cols
 
+  if(!is.na(mdes.results$`Adjusted MDES`) && test.pts$dx[[nrow(test.pts)]] < 0.001 )
+  {
+    msg <- "Note: this function returns one possible value of MDES, but other (smaller values) may also be valid.\n"
+    msg <- paste(msg, "Please refer to sample size vignette for interpretation.\n")
+    message(msg)
+    flat <- TRUE
+  } else
+  {
+    flat <- FALSE
+  }
+
   return( make.pumpresult( mdes.results, type = "mdes",
                            tries = test.pts,
+                           flat = flat,
+                           design = design,
                            params.list = params.list,
-                           just.result.table = just.result.table  ) )
+                           power.params.list = pow_params ) )
 }
 
 

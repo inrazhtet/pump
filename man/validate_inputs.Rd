@@ -9,13 +9,19 @@ validate_inputs(
   params.list,
   power.call = FALSE,
   mdes.call = FALSE,
-  single.MDES = FALSE
+  ss.call = FALSE
 )
 }
 \arguments{
 \item{design}{a single RCT design (see list/naming convention)}
 
 \item{params.list}{a list of parameters input by a user}
+
+\item{power.call}{flag for power estimation}
+
+\item{mdes.call}{flag for MDES estimation}
+
+\item{ss.call}{flag for sample size estimation}
 }
 \value{
 params.list

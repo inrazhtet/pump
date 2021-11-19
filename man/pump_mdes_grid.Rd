@@ -14,7 +14,6 @@ pump_mdes_grid(
   nbar,
   J = 1,
   K = 1,
-  numZero = NULL,
   Tbar,
   alpha,
   numCovar.1 = NULL,
@@ -49,16 +48,15 @@ outcomes}
 \item{power.definition}{must be a valid power type outputted by power
 function, i.e. D1indiv, min1, etc.}
 
-\item{tol}{tolerance for target power}
+\item{tol}{tolerance for target power, defaults to 0.01 (1%).  This parameter
+controls when the search is done: when estimated power (checked with
+`final.tnum` iterations) is within `tol`, the search stops.}
 
 \item{nbar}{scalar; the harmonic mean of the number of units per school}
 
 \item{J}{scalar; the number of schools}
 
 \item{K}{scalar; the number of districts}
-
-\item{numZero}{Additional number of outcomes assumed to be zero. Please
-provide NumZero + length(MDES) = M}
 
 \item{Tbar}{scalar; the proportion of samples that are assigned to the
 treatment}
@@ -81,28 +79,36 @@ Level 2 covariates for each outcome. Defaults to 0.}
 \item{R2.3}{scalar, or vector of length M; percent of variation explained by
 Level 3 covariates for each outcome. Defaults to 0.}
 
-\item{ICC.2}{scalar; school intraclass correlation}
+\item{ICC.2}{scalar, or vector of length M; school intraclass correlation}
 
-\item{ICC.3}{scalar; district intraclass correlation}
+\item{ICC.3}{scalar, or vector length M; district intraclass correlation}
 
-\item{omega.2}{scalar; ratio of variance of school-average impacts to
+\item{omega.2}{scalar, or vector of length M; ratio of variance of school-average impacts to
 variance of school-level random intercepts.  Default to 0 (no treatment
 variation).}
 
-\item{omega.3}{scalar; ratio of variance of district-average impacts to
+\item{omega.3}{scalar, or vector of length M; ratio of variance of district-average impacts to
 variance of district-level random intercepts. Default to 0 (no treatment
 variation).}
 
-\item{rho}{scalar; assumed correlation between the test statistics of the
-tests.}
+\item{rho}{scalar; assumed correlation between all pairs of test statistics.}
 
 \item{verbose}{Print out diagnostics of time, etc.}
+
+\item{use_furrr}{Use parallel processing furrr package to fit grid.}
+
+\item{drop_unique_columns}{Drop all parameter colunms that did not vary
+across the grid.}
+
+\item{...}{Extra arguments passed to the underlying pump_power, pump_sample,
+or pump_mdes functions.}
 }
 \description{
 Run pump_mdes on combination of factors
 }
 \seealso{
-Other pump_power_grid: 
+Other grid functions: 
+\code{\link{pump_power_grid}()},
 \code{\link{pump_sample_grid}()}
 }
-\concept{pump_power_grid}
+\concept{grid functions}

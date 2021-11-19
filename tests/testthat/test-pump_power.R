@@ -16,19 +16,54 @@ test_that("pump_power works without crashing", {
                     R2.1 = 0.1, R2.2 = 0.7,
                     ICC.2 = 0.05, ICC.3 = 0.4,
                     rho = 0.4, # how correlated outcomes are
+                    tnum = 200
+  )
+  pp
+  expect_true( is.pumpresult( pp ) )
+
+  expect_equal( dim( pp ), c(2,8) )
+
+  expect_true( is.na( pp[1,6] ) )
+  expect_true( is.na( pp[1,7] ) )
+  expect_true( is.na( pp[1,8] ) )
+})
+
+
+
+
+test_that("pump_power long.table", {
+  
+  pp <- pump_power( design = "d3.2_m3ff2rc",
+                    MTP = "Bonferroni",
+                    MDES = rep( 0.10, 3 ),
+                    M = 3,
+                    J = 3, # number of schools/block
+                    K = 21, # number RA blocks
+                    nbar = 258,
+                    Tbar = 0.50, # prop Tx
+                    alpha = 0.05, # significance level
+                    numCovar.1 = 5, numCovar.2 = 3,
+                    R2.1 = 0.1, R2.2 = 0.7,
+                    ICC.2 = 0.05, ICC.3 = 0.4,
+                    rho = 0.4, # how correlated outcomes are
                     tnum = 200,
                     long.table = TRUE
   )
   pp
   expect_true( is.pumpresult( pp ) )
-
+  expect_true( is.numeric( pp$Bonferroni ) )
+  
   expect_equal( dim( pp ), c(7,3) )
-
+  
   expect_true( is.na( pp$None[[5]] ) )
   expect_true( pp$Bonferroni[4] < pp$Bonferroni[5] )
   expect_true( pp$Bonferroni[4] > pp$Bonferroni[7] )
   expect_true( all ( ( pp$None >= pp$Bonferroni )[1:4] ) )
 })
+
+
+
+
 
 test_that("skipping level three inputs for level 2 works", {
 
@@ -143,7 +178,7 @@ test_that("K = 1 runs successfully", {
 
 test_that("unblocked designs", {
 
-  pp <- pump_power(   design = "d1.1_m2cc",
+  pp <- pump_power(   design = "d1.1_m1c",
                       MTP = "Bonferroni",
                       MDES = rep( 0.50, 3 ),
                       M = 3,
@@ -160,7 +195,7 @@ test_that("unblocked designs", {
   ES = log( 2 ) / 0.66
   ES
   R2.2 = 0.6102
-  pump_power(design = "d1.1_m2cc", MTP = "Holm", MDES = ES,
+  pump_power(design = "d1.1_m1c", MTP = "Holm", MDES = ES,
              R2.2 = R2.2, numCovar.2 = 1,
              M = 3, nbar = 12, Tbar = 1/3, alpha = 0.10, rho = 0.5 )
 
