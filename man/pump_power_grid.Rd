@@ -26,6 +26,7 @@ pump_power_grid(
   omega.2 = NULL,
   omega.3 = NULL,
   rho,
+  long.table = FALSE,
   verbose = FALSE,
   use_furrr = FALSE,
   drop_unique_columns = TRUE,
@@ -90,6 +91,9 @@ variation).}
 
 \item{rho}{scalar; assumed correlation between all pairs of test statistics.}
 
+\item{long.table}{TRUE for table with power as rows, correction as columns,
+and with more verbose names.  See `transpose_power_table`.}
+
 \item{verbose}{TRUE means print out some text as calls processed.  FALSE do
 not.}
 
@@ -113,7 +117,7 @@ pump_power, one for each MDES value given).
 Each parameter in the parameter list can be a list, not scalar.  It will
 cross all combinations of the list.
 
-These calls use furrr's future_pmap package to allow for parallel
+These calls can use furrr's future_pmap package to allow for parallel
 computation.  You can use the `setup_default_parallel_plan()` method or your
 own.  If you do nothing, it will default to single session.
 }

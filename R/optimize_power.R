@@ -20,7 +20,7 @@
 optimize_power <- function(design, search.type, MTP, target.power, power.definition, tol,
                            start.tnum, start.low, start.high,
                            MDES = NULL, J = NULL, K = 1, nbar = NULL,
-                           M = M, Tbar = Tbar, alpha,
+                           M = M, numZero = numZero, Tbar = Tbar, alpha, two.tailed,
                            numCovar.1 = 0, numCovar.2 = 0, numCovar.3 = 0,
                            R2.1 = 0, R2.2 = 0, R2.3 = 0, ICC.2 = 0, ICC.3 = 0,
                            omega.2 = 0, omega.3 = 0, rho,
@@ -43,7 +43,9 @@ optimize_power <- function(design, search.type, MTP, target.power, power.definit
       myK <- test_point
     }
 
-    if(search.type == 'mdes'){ MDES <- rep(test_point, M) }
+    if(search.type == 'mdes'){
+      MDES <- make_MDES_vector( test_point, M, numZero, verbose = FALSE )
+    }
 
     pt.power.results <- pump_power(
       design, MTP = MTP,
@@ -53,7 +55,7 @@ optimize_power <- function(design, search.type, MTP, target.power, power.definit
       K = myK,
       tnum = test_tnum,
       # fixed params
-      M = M, Tbar = Tbar, alpha = alpha,
+      M = M, numZero = numZero, Tbar = Tbar, alpha = alpha, two.tailed = two.tailed,
       numCovar.1 = numCovar.1, numCovar.2 = numCovar.2, numCovar.3 = numCovar.3,
       R2.1 = R2.1, R2.2 = R2.2, R2.3 = R2.3, ICC.2 = ICC.2, ICC.3 = ICC.3,
       rho = rho, omega.2 = omega.2, omega.3 = omega.3,
@@ -64,7 +66,7 @@ optimize_power <- function(design, search.type, MTP, target.power, power.definit
     return(pt.power.results)
   }
 
-  # Bundle power_check results in the data frame
+  # Bundle power_check results into a data frame
   power_check_df <- function( test_point, test_tnum ) {
     current.power.results <- power_check( test_point, test_tnum )
 
@@ -127,7 +129,7 @@ optimize_power <- function(design, search.type, MTP, target.power, power.definit
 
   # Step 1: fit initial series of points to start search
   test.pts <- gen_test_pts(start.low, start.high, tnum = start.tnum,
-                           round = FALSE ) #search.type != "mdes" )
+                           round = FALSE )
 
   if ( grid.only ) {
     return( test.pts )
@@ -301,8 +303,13 @@ estimate_power_curve <- function( p, low = NULL, high = NULL,
   stopifnot( pump_type(p) != "power" )
 
   pp <- params(p)
-  pp$numZero <- NULL
+  pp$start.tnum = NULL
+
+  #Zero this out since we will be calling optimize power, which doesn't allow
+  #for a rho matrix.
+  # pp$numZero <- NULL
   pp$rho.matrix <- NULL
+
   sp <- attr(p, "search.range" )
   test.pts <- search_path(p)
   if ( is.null( low ) ) {
@@ -450,23 +457,23 @@ find_best <- function(test.pts, target.power, gamma = 1.5)
   start.low <- min( test.pts$pt )
   start.high <- max( test.pts$pt )
 
-  fit = fit_bounded_logistic( test.pts$pt, test.pts$power, sqrt( test.pts$w ) )
+  fit <- fit_bounded_logistic( test.pts$pt, test.pts$power, sqrt( test.pts$w ) )
 
   if ( fit[["pmin"]] > target.power ) {
     # Min power is too high.  Reach lower.
     warning( "Minimum estimated power higher than target power" )
-    cc =  start.low / gamma
+    cc <-  start.low / gamma
   } else if ( fit[["pmax"]] < target.power ) {
     # Max power is too low.  This could be a limitation or estimation error.
     warning( "Maximum estimated power lower than target power" )
 
-    cc = start.high * gamma
+    cc <- start.high * gamma
   } else {
     # extract point where it crosses target power.
-    cc = find_crossover( target.power, fit )
+    cc <- find_crossover( target.power, fit )
   }
 
-  return( list( x = cc, dx = d_bounded_logistic_curve(cc,fit), params=fit ) )
+  return( list( x = cc, dx = d_bounded_logistic_curve(cc, fit), params = fit ) )
 }
 
 
@@ -626,114 +633,4 @@ find_best <- function(test.pts, target.power, gamma = 1.5)
 
 
 
-#' Examine search path of the power search.
-#'
-#' This will give two plots about how the search narrowed down into the final
-#' estimate.  Can be useful to gauge where convergence went poorly.
-#'
-#' @param pwr Result from the pump_sample or pump_mdes
-#' @param plot.points flag; whether to plot individual points on curve
-#'
-#' @export
-plot_power_curve <- function( pwr, plot.points = TRUE ) {
-  if ( is.pumpresult( pwr ) ) {
-    test.pts <- power_curve(pwr, all = TRUE )
-    x_label <- pump_type(pwr)
-  } else {
-    stopifnot( is.data.frame(pwr) )
-    test.pts <- pwr
-    x_label <- "parameter"
-  }
 
-  tp <- dplyr::filter( test.pts, !is.na( .data$power ) )
-  fit <- fit_bounded_logistic( tp$pt, tp$power, tp$w )
-
-  xrng = range( test.pts$pt )
-  lims <- grDevices::extendrange( r = range( test.pts$power, test.pts$target.power[[1]], na.rm = TRUE ), 0.15 )
-  limsX <- grDevices::extendrange( r = xrng, 0.15 )
-
-  plot1 <-  ggplot2::ggplot( test.pts ) +
-    ggplot2::geom_hline( yintercept = test.pts$target.power[[1]], col = "purple" ) +
-    ggplot2::theme_minimal() +
-    ggplot2::stat_function( col="red", fun = function(x) { bounded_logistic_curve( x, params = fit ) } ) +
-    ggplot2::guides(colour="none", size="none") +
-    ggplot2::coord_cartesian( ylim=lims, xlim = limsX ) +
-    ggplot2::labs( x = x_label, y = "power" )
-
-  delrange = diff( xrng )
-  if ( delrange >= 2 && delrange <= 10 ) {
-    xpt = seq( floor( xrng[[1]] ), ceiling( xrng[[2]] ) )
-    plot1 = plot1 +   ggplot2::scale_x_log10( breaks = xpt )
-  } else {
-    plot1 = plot1 +  ggplot2::scale_x_log10()
-  }
-
-
-  if ( plot.points ) {
-    plot1 <- plot1 + ggplot2::geom_point( ggplot2::aes( .data$pt, .data$power, size = .data$w ), alpha = 0.5 )
-  }
-
-  return( plot1 )
-
-}
-
-
-
-
-
-#' Examine search path of the power search.
-#'
-#' This will give two plots about how the search narrowed down into the final
-#' estimate.  Can be useful to gauge where convergence went poorly.
-#'
-#' @param pwr Result from the pump_sample or pump_mdes
-#'
-#' @export
-plot_power_search <- function( pwr ) {
-  if ( is.pumpresult(pwr) ) {
-    test.pts <- search_path(pwr)
-  } else if ( is.data.frame(pwr) ) {
-    test.pts <- pwr
-  } else {
-    test.pts <- pwr$test.pts
-  }
-
-  if(is.null(test.pts))
-  {
-    stop('Algorithm converged in one iteration. No search path.')
-  }
-
-  tp <- dplyr::filter( test.pts, !is.na( .data$power ) )
-  fit <- fit_bounded_logistic( tp$pt, tp$power, tp$w )
-
-  lims <- grDevices::extendrange( r = range( test.pts$power, test.pts$target.power[[1]], na.rm=TRUE ), 0.15 )
-  plot1 <-  ggplot2::ggplot( test.pts ) +
-    ggplot2::geom_hline( yintercept = test.pts$target.power[1], col = "purple" ) +
-    ggplot2::geom_point( ggplot2::aes( .data$pt, .data$power, size = .data$w ), alpha = 0.5 ) +
-    ggplot2::theme_minimal() +
-    ggplot2::geom_text( ggplot2::aes( .data$pt, .data$power, label = .data$step ), vjust = "bottom", nudge_y = 0.01, size=3 ) +
-    ggplot2::stat_function( col = "red", fun = function(x) { bounded_logistic_curve( x, params =fit ) } ) +
-    ggplot2::guides(colour = "none", size="none") +
-    ggplot2::coord_cartesian(ylim = lims ) +
-    ggplot2::scale_x_log10()
-
-
-  plot2 <-  ggplot2::ggplot( test.pts, ggplot2::aes(.data$step, .data$power, size = .data$w) ) +
-    ggplot2::geom_hline( yintercept = test.pts$target.power[1], col = "purple" ) +
-    ggplot2::geom_point( alpha = 0.5 ) +
-    ggplot2::scale_x_continuous( breaks=0:max(test.pts$step) ) +
-    ggplot2::theme_minimal()+
-    ggplot2::coord_cartesian(ylim=lims ) +
-    ggplot2::guides(colour="none", size="none")
-
-  plot3 <-  ggplot2::ggplot( test.pts, ggplot2::aes(.data$step, .data$pt, size = .data$w) ) +
-    ggplot2::geom_point( alpha = 0.5 ) +
-    ggplot2::scale_x_continuous( breaks=0:max(test.pts$step) ) +
-    ggplot2::theme_minimal() +
-    ggplot2::guides(colour="none", size="none")+
-    ggplot2::scale_y_log10()
-
-  gridExtra::grid.arrange(plot1, plot2, plot3, ncol=3) #+
-  #title( "Search path for optimize_power" )
-
-}

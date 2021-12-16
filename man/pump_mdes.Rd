@@ -7,12 +7,14 @@
 pump_mdes(
   design,
   MTP = NULL,
+  numZero = NULL,
   M,
   nbar,
   J,
   K = 1,
   Tbar,
   alpha = 0.05,
+  two.tailed = TRUE,
   target.power,
   power.definition,
   tol = 0.01,
@@ -46,6 +48,9 @@ pump_mdes(
 none, Bonferroni, BH, Holm, WY-SS, WY-SD (passed as strings).  Provide list
 to automatically re-run for each procedure on the list.}
 
+\item{numZero}{scalar; Additional number of outcomes assumed to be zero. Please
+provide NumZero + length(MDES) = M}
+
 \item{M}{scalar; the number of hypothesis tests (outcomes), including zero
 outcomes}
 
@@ -59,6 +64,8 @@ outcomes}
 treatment}
 
 \item{alpha}{scalar; the family wise error rate (FWER)}
+
+\item{two.tailed}{scalar; TRUE/FALSE for two-tailed or one-tailed power calculation.}
 
 \item{target.power}{Target power to arrive at}
 

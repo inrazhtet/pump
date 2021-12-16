@@ -46,7 +46,7 @@ test_that("pump_sample_raw works", {
     typesample = "nbar",
     J = 5,
     MDES = 0.05, target.power = 0.80, tol = 0.01,
-    Tbar = 0.50, alpha = 0.05, numCovar.1 = 5,
+    Tbar = 0.50, alpha = 0.05, two.tailed = TRUE, numCovar.1 = 5,
     numCovar.2 = 1,
     R2.1 = 0.1, R2.2 = 0.7, ICC.2 = 0.05 )
 
@@ -56,7 +56,7 @@ test_that("pump_sample_raw works", {
                                typesample = "nbar",
                                J = 10,
                                MDES = 0.05, target.power = 0.80,
-                               Tbar = 0.50, alpha = 0.05,
+                               Tbar = 0.50, alpha = 0.05, two.tailed = TRUE,
                                numCovar.1 = 5, numCovar.2 = 1,
                                R2.1 = 0.1, R2.2 = 0.7, ICC.2 = 0.05 )
 
@@ -68,7 +68,7 @@ test_that("pump_sample_raw works", {
                             typesample = "J",
                             nbar = 258,
                             MDES = 0.05, target.power = 0.80,
-                            Tbar = 0.50, alpha = 0.05,
+                            Tbar = 0.50, alpha = 0.05, two.tailed = TRUE,
                             numCovar.1 = 5, numCovar.2 = 1,
                             R2.1 = 0.1, R2.2 = 0.7, ICC.2 = 0.05 )
 
@@ -79,34 +79,34 @@ test_that("pump_sample_raw works", {
                             typesample = "nbar",
                             J = calcJ$ss,
                             MDES = 0.05, target.power = 0.80,
-                            Tbar = 0.50, alpha = 0.05,
+                            Tbar = 0.50, alpha = 0.05, two.tailed = TRUE,
                             numCovar.1 = 5, numCovar.2 = 1,
                             R2.1 = 0.1, R2.2 = 0.7, ICC.2 = 0.05 )
 
   calcn
-  expect_true( abs( calcn$ss - 258 ) < 2 )
+  expect_equal(258, calcn$ss, tol = 0.01)
 
   calcJ2 <- pump_sample_raw( design = "d2.1_m2fc",
                              typesample = "J",
                              nbar = calcn$ss,
                              MDES = 0.05, target.power = 0.80,
-                             Tbar = 0.50, alpha = 0.05,
+                             Tbar = 0.50, alpha = 0.05, two.tailed = TRUE,
                              numCovar.1 = 5, numCovar.2 = 1,
                              R2.1 = 0.1, R2.2 = 0.7, ICC.2 = 0.05, ICC.3 = 0.4 )
 
   calcJ2
-  expect_true( abs( calcJ$ss - calcJ2$ss ) < 1 )
+  expect_equal(calcJ$ss, calcJ2$ss, tol = 0.01)
 
   calcn2 <- pump_sample_raw( design = "d2.1_m2fc",
                              typesample = "nbar",
                              J = calcJ2$ss,
                              MDES = 0.05, target.power = 0.80,
-                             Tbar = 0.50, alpha = 0.05,
+                             Tbar = 0.50, alpha = 0.05, two.tailed = TRUE,
                              numCovar.1 = 5, numCovar.2 = 1,
                              R2.1 = 0.1, R2.2 = 0.7, ICC.2 = 0.05, ICC.3 = 0.4 )
 
   calcn2
-  expect_true( abs( calcn$ss - calcn2$ss ) < 2 )
+  expect_equal(calcn$ss, calcn2$ss, tol = 0.01)
 })
 
 
@@ -119,7 +119,7 @@ test_that("Bonferroni for non individual power", {
                     nbar = 200,
                     M = 3,
                     MDES = rep(0.05, 3),
-                    Tbar = 0.50, alpha = 0.05,
+                    Tbar = 0.50, alpha = 0.05, two.tailed = FALSE,
                     numCovar.1 = 5, numCovar.2 = 1,
                     R2.1 = 0.1, R2.2 = 0.7, ICC.2 = 0.05, ICC.3 = 0.4,
                     rho = 0.4 )
@@ -133,7 +133,7 @@ test_that("Bonferroni for non individual power", {
                         M = 3,
                         MDES = 0.05, target.power = p$min1[2],
                         tol = 0.01,
-                        Tbar = 0.50, alpha = 0.05,
+                        Tbar = 0.50, alpha = 0.05, two.tailed = FALSE,
                         numCovar.1 = 5, numCovar.2 = 1,
                         R2.1 = 0.1, R2.2 = 0.7, ICC.2 = 0.05, ICC.3 = 0.4,
                         rho = 0.4 )
@@ -511,3 +511,44 @@ test_that( "different values for different outcomes", {
   expect_true(ss2$`Sample.size` > ss3$`Sample.size`)
 
 })
+
+
+
+
+
+
+
+
+test_that( "different MDES values work", {
+  
+  set.seed(034443)
+  
+  pow <- pump_power(
+    design = "d2.2_m2rc",
+    MTP = "BH",
+    J = 40,
+    nbar = 100,
+    M = 5,
+    MDES = c( 0.10, 0.05, 0.6, 0.05, 0.7 ),
+    Tbar = 0.50, alpha = 0.05,
+    numCovar.1 = 5, numCovar.2 = 1,
+    R2.1 = 0.1, R2.2 = 0.7, ICC.2 = c(0.1, 0.5, 0.8,0,0.4), ICC.3 = 0.1,
+    rho = 0.4 )
+  pow
+  
+  ss1 = update( pow, type="sample",
+                typesample = "J",
+                power.definition = "D4indiv",
+                target.power = pow$D4indiv[[2]])
+  ss1
+  expect_equal( ss1$Sample.size, 40, tol=0.05 )
+  
+  ss2 = update( pow, type="sample",
+                typesample = "J",
+                power.definition = "D5indiv",
+                target.power = 0.80 )
+  ss2
+  expect_true( ss2$Sample.size < 40 )
+
+})
+

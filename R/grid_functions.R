@@ -28,8 +28,9 @@ run_grid <- function( args, pum_function, verbose = FALSE,
 
   if ( drop_unique_columns ) {
     grid <- dplyr::select(
-      grid, dplyr::any_of( c("MDES", "numZero" )) |
-      tidyselect::vars_select_helpers$where( ~ !is.numeric( .x ) || length( unique( .x ) ) > 1 ) )
+      grid,
+      dplyr::any_of( c("MDES", "numZero" ) ) |
+        tidyselect::vars_select_helpers$where( ~ !is.numeric( .x ) || length( unique( .x ) ) > 1 ) )
   }
   grid$res <- purrr::map( grid$res, as.data.frame )
   grid$MTP <- NULL
@@ -47,8 +48,7 @@ run_grid <- function( args, pum_function, verbose = FALSE,
 #'
 #' Set up furrr to use all but one core
 #'
-# @importFrom future plan
-# @importFrom future multisession
+#' @importFrom future plan multisession
 #' @importFrom parallel detectCores
 #'
 #' @export
@@ -70,7 +70,7 @@ setup_default_parallel_plan <- function() {
 #' Each parameter in the parameter list can be a list, not scalar.  It will
 #' cross all combinations of the list.
 #'
-#' These calls use furrr's future_pmap package to allow for parallel
+#' These calls can use furrr's future_pmap package to allow for parallel
 #' computation.  You can use the `setup_default_parallel_plan()` method or your
 #' own.  If you do nothing, it will default to single session.
 #'
@@ -102,6 +102,7 @@ pump_power_grid <- function( design, MTP, MDES, M, nbar,
                              ICC.2 = NULL, ICC.3 = NULL,
                              omega.2 = NULL, omega.3 = NULL,
                              rho,
+                             long.table = FALSE,
                              verbose = FALSE,
                              use_furrr = FALSE,
                              drop_unique_columns = TRUE,
@@ -126,9 +127,18 @@ pump_power_grid <- function( design, MTP, MDES, M, nbar,
   nulls <- purrr::map_lgl( args, is.null )
   args <- args[ !nulls ]
 
-  grid <- run_grid( args, pum_function = pump_power, verbose = verbose,
+  grid <- run_grid( args, pum_function = pump_power,
+                    long.table = long.table,
+                    verbose = verbose,
                     drop_unique_columns = drop_unique_columns,
                     MTP = MTP, ..., use_furrr = use_furrr )
+
+  grid <- make.pumpgrid(
+    grid, "power",
+    params.list = args[names(args) != 'design'],
+    design = design,
+    multiple_MTP = TRUE,
+    long.table = long.table )
 
   return( grid )
 }

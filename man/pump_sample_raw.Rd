@@ -15,7 +15,7 @@ pump_sample_raw(
   target.power,
   Tbar,
   alpha = 0.05,
-  two.tailed = TRUE,
+  two.tailed,
   numCovar.1 = 0,
   numCovar.2 = 0,
   numCovar.3 = 0,
@@ -56,7 +56,7 @@ treatment}
 
 \item{alpha}{scalar; the family wise error rate (FWER)}
 
-\item{two.tailed}{whether to calculate two-tailed or one-tailed power}
+\item{two.tailed}{scalar; TRUE/FALSE for two-tailed or one-tailed power calculation.}
 
 \item{numCovar.1}{scalar; number of Level 1 (individual) covariates (not
 including block dummies)}
@@ -95,10 +95,13 @@ achieve target power for sample size.}
 Requisit sample size (as integer) and associated degreess of freedom.
 }
 \description{
-This is a Helper function for getting a needed Sample Size when no
+This is a helper function for getting a needed Sample Size when no
 adjustments has been made to the test statistics.
 }
 \details{
+It is for a single, individual outcome.  It only takes scalar values for all
+its arguments, and does not have an M argument (for number of outcomes).
+
 It requires iteration because we do not know the degrees of freedom, and so
 we guess and then calculate sample size, and then recalculate df based on
 sample size, until we converge.

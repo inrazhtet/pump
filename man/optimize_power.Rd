@@ -19,8 +19,10 @@ optimize_power(
   K = 1,
   nbar = NULL,
   M = M,
+  numZero = numZero,
   Tbar = Tbar,
   alpha,
+  two.tailed,
   numCovar.1 = 0,
   numCovar.2 = 0,
   numCovar.3 = 0,
@@ -79,10 +81,15 @@ outcomes.}
 \item{M}{scalar; the number of hypothesis tests (outcomes), including zero
 outcomes}
 
+\item{numZero}{scalar; Additional number of outcomes assumed to be zero. Please
+provide NumZero + length(MDES) = M}
+
 \item{Tbar}{scalar; the proportion of samples that are assigned to the
 treatment}
 
 \item{alpha}{scalar; the family wise error rate (FWER)}
+
+\item{two.tailed}{scalar; TRUE/FALSE for two-tailed or one-tailed power calculation.}
 
 \item{numCovar.1}{scalar; number of Level 1 (individual) covariates (not
 including block dummies)}

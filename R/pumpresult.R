@@ -36,6 +36,23 @@ make.pumpresult = function( x,
 }
 
 
+make.pumpgrid = function( x,
+                          type = c( "power", "mdes", "sample" ),
+                          design = design,
+                          params.list = NULL,
+                          ... ) {
+  type <- match.arg(type)
+  class(x) <- c( "pumpgrid", class(x) )
+  attr(x, "type" ) <- type
+  attr(x, "params.list") <- params.list
+  attr(x, "design") <- design
+  ll = list(...)
+  for ( l in names(ll) ) {
+    attr(x, l) <- ll[[ l ]]
+  }
+  return( x )
+}
+
 
 
 #' Update a single pump call to a grid call
@@ -112,13 +129,30 @@ update.pumpresult = function( object, ... ) {
 
     # Are we changing what kind of calculation we want to perform?  If so,
     # adjust some parameters as needed.
+    # result_type - the old type
+    # params$type - the new type
     if ( params$type != result_type ) {
 
+        # Copy over sample size from the pump_sampel call
         if ( result_type == "sample" ) {
             ss = object$`Sample.size`
             slvl = attr(object, "sample.level" )
             params[[slvl]] = ss
         }
+
+        if ((params$type == "mdes" || params$type == "sample") && result_type == "power" ) {
+            params["max.tnum"] = params["tnum"]
+            params["tnum"] = NULL
+        }
+
+        if ( params$type == "power" && (result_type == "mdes" || result_type == "sample") ) {
+            params["start.tnum"] = NULL
+            params["tnum"] = params["max.tnum"]
+            params["max.tnum"] = NULL
+            params["final.tnum"] = NULL
+            params["max.steps"] = NULL
+        }
+
         result_type = params$type
     }
     params$type = NULL
@@ -130,14 +164,12 @@ update.pumpresult = function( object, ... ) {
         do.call(pump_power, params)
     } else if ( result_type == "mdes" ) {
         params["MDES"] = NULL
-        params["numZero"] = NULL
         do.call( pump_mdes, params )
     } else if ( result_type == "sample" ) {
         if ( is.null( params[["typesample"]] ) ) {
             params["typesample"] = attr( object, "sample.level" )
         }
         params[params$typesample] = NULL
-        params["numZero"] = NULL
         do.call( pump_sample, params )
     } else {
         stop( sprintf( "Unrecognized type, %s, in update()", result_type ) )
@@ -163,7 +195,7 @@ update.pumpresult = function( object, ... ) {
 #' and combined.  The return values from the `grid` functions will just return
 #' data frames in general.
 #'
-#' @seealso updateå
+#' @seealso update
 #' @seealso update_grid
 #'
 #' @param x a pumpresult object (except for is.pumpresult, where it is a generic
@@ -171,6 +203,22 @@ update.pumpresult = function( object, ... ) {
 #' @rdname pumpresult
 NULL
 
+
+#' @title pumpresult object for results of grid power calculations
+#' @name pumpgrid
+#'
+#' @description
+#' The pumpgrid object is an S3 class that holds the results from
+#' `pump_power_grid()`, `pump_sample_grid()`, and `pump_mdes_grid()`.
+#'
+#' It has several methods that pull different information from this object, and
+#' some printing methods for getting nicely formatted results.
+#'
+#'
+#' @param x a pumpgrid object (except for is.pumpresult, where it is a generic
+#'   object to check).
+#' @rdname pumpgrid
+NULL
 
 
 
@@ -181,7 +229,7 @@ NULL
 #' @rdname pumpresult
 #' @export
 params <- function( x, ... ) {
-    stopifnot( is.pumpresult( x ) )
+    stopifnot( is.pumpresult( x ) | is.pumpgrid( x ) )
 
     pp = attr( x, "params.list" )
     pp_pow = attr(x, "power.params.list" )
@@ -276,6 +324,14 @@ is.pumpresult = function( x ) {
     inherits(x, "pumpresult")
 }
 
+#' @return is.pumpresult: TRUE if object is a pumpgrid object.
+#'
+#' @export
+#'
+#' @rdname pumpgrid
+is.pumpgrid = function( x ) {
+  inherits(x, "pumpgrid")
+}
 
 
 
@@ -295,7 +351,7 @@ dim.pumpresult <- function( x, ... ) {
 #' @param ... Extra options passed to print.pumpresult
 #' @rdname pumpresult
 summary.pumpresult = function( object, ... ) {
-    print_design( object, insert_results = TRUE, ... )
+    print_design( object, insert_results = TRUE, insert_control = TRUE, ... )
 }
 
 
@@ -312,7 +368,7 @@ summary.pumpresult = function( object, ... ) {
 #' @rdname pumpresult
 print.pumpresult = function( x, n = 10,
                              header=TRUE,
-                             search = header,
+                             search = FALSE,
                              ... ) {
     result_type = attr( x, "type" )
 
@@ -329,21 +385,44 @@ print.pumpresult = function( x, n = 10,
 
     print( as.data.frame( x ), row.names=FALSE )
 
-
-    tr = attr( x, "tries" )
-    if ( search && !is.null( tr ) ) {
-        cat( "\nSearch history\n")
-        nr = nrow( tr )
-        if ( nr <= n ) {
-            print( tr )
-            print( utils::head( tr, max(n/2,1) ) )
-            scat( "\t...  %s steps total ...\n", nr )
-            print( utils::tail( tr, max(n/2),1) )
+    if ( search ) {
+        print_search( x )
+    } else {
+        tr = attr( x, "tries" )
+        if ( !is.null( tr ) ) {
+            scat( "\t(%d steps in search)\n", nrow(tr) )
         }
     }
 
-
     invisible( x )
+}
+
+
+#' Print the search history of a pump result object
+#'
+#' For pump_mdes and pump_sample, print the search history.
+#'
+#' @inheritParams print.pumpresult
+#' @return Number of steps in search.
+#' @export
+print_search <- function( x, n = 10 ) {
+    tr = attr( x, "tries" )
+    if ( !is.null( tr )  ) {
+        cat( "\nSearch history\n")
+        nr = nrow( tr )
+        if ( nr >= n ) {
+            print( utils::head( tr, max(n/2,1) ) )
+            scat( "\t...  %s steps total ...\n", nr )
+            if ( n >= 2 ) {
+                print( utils::tail( tr, n/2 ) )
+            }
+        } else {
+            print( tr )
+        }
+        invisible( nr )
+    } else {
+        invisible( 0 )
+    }
 }
 
 
@@ -352,10 +431,11 @@ print.pumpresult = function( x, n = 10,
 #'
 #' @param x A pumpresult object.
 #' @param insert_results Include actual results in the printout.
+#' @param insert_control Include the optimizer control parameter information.
 #' @param ... Extra arguments to pass to print.pumpresult.
 #'
 #' @export
-print_design <- function( x, insert_results = FALSE, ...  ) {
+print_design <- function( x, insert_results = FALSE, insert_control = FALSE, ...  ) {
 
 
     reduce_vec = function( vec ) {
@@ -451,14 +531,16 @@ print_design <- function( x, insert_results = FALSE, ...  ) {
         print.pumpresult(x, header=FALSE, search=FALSE, ... )
     }
 
-    scat( "\t  (B = %s", params$B )
-    if ( exists( "tnum" ) ) {
-        scat( "  tnum = %s", params$tnum)
+    if ( insert_control ) {
+        ex_params = params[ c("B", "max.steps", "tnum", "start.tnum", "max.tnum", "final.tnum", "tol") ]
+        if ( params$MTP != "WY-SS" && params$MTP != "WY-SD" ) {
+            ex_params$B = NULL
+        }
+        no_inc = sapply( ex_params, is.null )
+        ex_params = ex_params[ !no_inc ]
+        scat( "\t(%s)\n",
+              paste( names(ex_params), ex_params, sep = " = ", collapse = "  " ) )
     }
-    if ( exists( "tol" ) ) {
-        scat( "  tol = %s", params$tol )
-    }
-    scat( ")\n" )
 
     invisible( x )
 }
