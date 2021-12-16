@@ -27,7 +27,8 @@ Imports:
      tibble,
      tidyr,
      tidyselect,
-     tidyverse
+     tidyverse,
+     future
 Additional_repositories: 
 License: MIT + file LICENSE
 Encoding: UTF-8
@@ -37,6 +38,5 @@ Suggests:
     testthat,
     knitr,
     furrr,
-    future,
     PowerUpR
 VignetteBuilder: knitr
